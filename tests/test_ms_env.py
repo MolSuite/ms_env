@@ -54,7 +54,7 @@ def test_spec_binds_per_host(tmp_path):
     assert remote.candidates == ("/usr/local/bin/faketool", "/opt/mine/bin/faketool")
     steps = tools.recipe_steps(remote, Host("mario@login.hpc"))
     assert [step.name.removeprefix("mario@login.hpc: ") for step in steps] == [
-        "clear /opt/mine", "create the faketool environment", "pip install into faketool", "stamp the faketool install",
+        "prepare /opt/mine", "create the faketool environment", "pip install into faketool", "record the faketool install",
     ]
     assert steps[1].argv[:4] == ["ssh", "-o", "BatchMode=yes", "mario@login.hpc"]
     assert "/scratch/tools/micromamba" in steps[1].argv[-1]  # bootstrap lands under the remote home

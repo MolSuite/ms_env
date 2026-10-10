@@ -239,9 +239,9 @@ def recipe_steps(recipe: Recipe, host: Host = LOCAL) -> list[Step]:
         f'&& rm -f "$p{_INSTALLING}"'
     )
     steps = (
-        RecipeStep(f"clear {recipe.prefix}", ("sh", "-c", clear), 300.0),
+        RecipeStep(f"prepare {recipe.prefix}", ("sh", "-c", clear), 300.0),
         *recipe.steps,
-        RecipeStep(f"stamp the {recipe.name} install", ("sh", "-c", stamp), 60.0),
+        RecipeStep(f"record the {recipe.name} install", ("sh", "-c", stamp), 60.0),
     )
     return [Step(label + step.name, argv=_argv_on(step.argv, host), timeout=step.timeout) for step in steps]
 
