@@ -9,6 +9,11 @@ project (none has to be open).
 Lookup on a target, first candidate whose check exits 0 wins: paths the user
 registered, the managed install under ``tools_home``, then ``PATH``.
 
+Whose a prefix is decides what happens to it. ``ensure`` stamps what it installs: a
+stamped prefix is created again when the recipe changes, and ``remove`` deletes it. A
+prefix that holds something without a stamp is the user's own environment: ``verify``
+says what it lacks of what the recipe asks for, and nothing ever changes or deletes it.
+
 TOML layout (every section but ``[tool]`` and ``[locate]`` is optional)::
 
     [tool]
@@ -35,6 +40,10 @@ Every command runs through ``sh`` on the target, so targets are POSIX hosts.
 """
 from __future__ import annotations
 
+import dataclasses
+import hashlib
+import json
+import re
 import shlex
 import subprocess
 import threading
@@ -51,6 +60,9 @@ READY = "ready"
 MISSING = "missing"
 UNREACHABLE = "unreachable"
 _SSH_CONNECT_FAILED = 255  # ssh's own exit code; anything else came from the remote command
+STAMP = ".ms_env.json"  # inside a prefix ms_env installed
+_INSTALLING = ".installing"  # beside a prefix while it is installed: what a cut install leaves is ours too
+_USER = "user"
 
 
 # ----------------------------------------------------------------------------
@@ -72,6 +84,9 @@ class Recipe:
     commands: tuple[str, ...]  # then these names on PATH
     check: tuple[str, ...]  # "{exe}" marks the candidate
     steps: tuple[RecipeStep, ...]
+    conda: tuple[str, ...] = ()  # what the environment at `prefix` has to hold
+    pip: tuple[str, ...] = ()
+    stamp: str = ""  # hash of what the TOML asks for, the same on every target
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,9 +134,10 @@ class ToolSpec:
     ) -> Recipe:
         """Bind the templates to one target. ``tools_home``/``prefix`` are paths *on that target*.
 
-        ``prefix`` is a user-registered install location (looked up and installed into instead
-        of the managed one); ``extra_paths`` are user-registered executables; ``manager`` is a
-        conda/mamba/micromamba known to exist there (otherwise one is searched, then bootstrapped).
+        ``prefix`` is a location the user chose instead of the managed one: an environment of
+        their own (checked, never changed) or a place to install into. ``extra_paths`` are
+        user-registered executables; ``manager`` is a conda-type program to use there instead
+        of micromamba.
         """
         values = {"tools_home": str(tools_home).rstrip("/"), "name": self.name, "version": self.version, "exe": "{exe}"}
         values["prefix"] = str(prefix or self.prefix.format_map(values)).rstrip("/")
@@ -135,6 +151,11 @@ class ToolSpec:
             commands=self.commands,
             check=fill(self.check),
             steps=tuple(steps),
+            conda=fill(self.conda),
+            pip=fill(self.pip),
+            stamp=hashlib.sha256(
+                repr((self.name, self.version, self.conda, self.pip, self.channels, self.steps)).encode()
+            ).hexdigest()[:16],
         )
 
 
@@ -164,18 +185,18 @@ def _env_steps(
 
 
 def _find_or_bootstrap_manager(hint: str, tools_home: str) -> str:
-    """sh that leaves a conda-type manager in $M: the hint, PATH, or a micromamba it downloads."""
+    """sh that leaves the manager in $M: the hint, micromamba on PATH, or one it downloads."""
     root = shlex.quote(f"{tools_home}/micromamba")
     return f"""M={shlex.quote(str(hint or ""))}
-[ -x "$M" ] || M=$(command -v micromamba || command -v mamba || command -v conda) || {{
+[ -x "$M" ] || M=$(command -v micromamba) || {{
   case "$(uname -s)-$(uname -m)" in
     Linux-x86_64) p=linux-64 ;; Linux-aarch64) p=linux-aarch64 ;;
     Darwin-arm64) p=osx-arm64 ;; Darwin-x86_64) p=osx-64 ;;
-    *) echo "no conda/mamba/micromamba here and no micromamba build for $(uname -sm)" >&2; exit 1 ;;
+    *) echo "no micromamba here and no build of it for $(uname -sm)" >&2; exit 1 ;;
   esac
   M={root}/bin/micromamba
   if [ ! -x "$M" ]; then
-    echo "no environment manager found: installing micromamba into {root}"
+    echo "no micromamba found: installing it into {root}"
     mkdir -p {root} && curl -fsSL "https://micro.mamba.pm/api/micromamba/$p/latest" | tar -xj -C {root} bin/micromamba || exit 1
   fi
   export MAMBA_ROOT_PREFIX={root}
@@ -190,12 +211,39 @@ def _argv_on(argv: Iterable[str], target: Target) -> list[str]:
     return list(argv) if target.host is None else target.argv(shlex.join(argv))
 
 
+def _prefix(recipe: Recipe) -> str:
+    if not recipe.prefix.strip("/ "):
+        raise ValueError(f"{recipe.name}: a recipe needs a prefix of its own, not {recipe.prefix!r}.")
+    return shlex.quote(recipe.prefix)
+
+
+def _stamp_text(recipe: Recipe) -> str:
+    return json.dumps({"name": recipe.name, "stamp": recipe.stamp})
+
+
 def recipe_steps(recipe: Recipe, target: Target = LOCAL) -> list[Step]:
-    label = f"{target.host}: " if target.host else ""
-    return [
-        Step(label + step.name, argv=_argv_on(step.argv, target), timeout=step.timeout)
-        for step in recipe.steps
-    ]
+    """The whole install: clear what ms_env left at the prefix, run the recipe, stamp it.
+
+    The first step fails on a prefix that holds something ms_env did not install.
+    """
+    label, prefix = (f"{target.host}: " if target.host else ""), _prefix(recipe)
+    clear = (
+        f'p={prefix}\n'
+        f'if [ -n "$(ls -A "$p" 2>/dev/null)" ] && [ ! -f "$p/{STAMP}" ] && [ ! -f "$p{_INSTALLING}" ]; then\n'
+        '  echo "$p holds an environment ms_env did not install: it is checked, never changed." >&2; exit 1\n'
+        "fi\n"
+        f'mkdir -p "$(dirname "$p")" && : > "$p{_INSTALLING}" && rm -rf -- "$p"'
+    )
+    stamp = (
+        f'p={prefix}\nmkdir -p "$p" && printf %s {shlex.quote(_stamp_text(recipe))} > "$p/{STAMP}" '
+        f'&& rm -f "$p{_INSTALLING}"'
+    )
+    steps = (
+        RecipeStep(f"clear {recipe.prefix}", ("sh", "-c", clear), 300.0),
+        *recipe.steps,
+        RecipeStep(f"stamp the {recipe.name} install", ("sh", "-c", stamp), 60.0),
+    )
+    return [Step(label + step.name, argv=_argv_on(step.argv, target), timeout=step.timeout) for step in steps]
 
 
 def _locate_script(recipe: Recipe) -> str:
@@ -234,6 +282,84 @@ def status(recipe: Recipe, target: Target = LOCAL) -> str:
 
 
 # ----------------------------------------------------------------------------
+# Whose the prefix is, and whether it holds what the recipe asks for
+# ----------------------------------------------------------------------------
+
+def _owner(recipe: Recipe, target: Target) -> str:
+    """The stamp of a prefix ms_env installed, `_USER` for one that holds something else, "" for none."""
+    script = (
+        f'p={_prefix(recipe)}\n'
+        f'[ -f "$p/{STAMP}" ] && {{ cat "$p/{STAMP}"; exit 0; }}\n'
+        f'[ -f "$p{_INSTALLING}" ] && {{ echo installing; exit 0; }}\n'
+        f'[ -n "$(ls -A "$p" 2>/dev/null)" ] && echo {_USER}\nexit 0'
+    )
+    return target.run(script, timeout=60).decode().strip()
+
+
+def _pin(spec: str) -> tuple[str, str]:
+    """(name, version) of `name=1.2`, `name==1.2` or `name[extra]==1.2`. A range pins no version."""
+    name, version = re.match(r"\s*([\w.-]*)(?:\[[^]]*])?\s*(?:==?\s*([\w.!+-]+))?", spec).groups()
+    return name, (version or "").rstrip(".")
+
+
+# Run by the python of the prefix. ponytail: versions compare as text, so 1.0 is not 1.0.0;
+# `packaging` on this side if a recipe ever pins that loosely.
+_PIP_PINS = """import sys
+from importlib.metadata import PackageNotFoundError, version
+for pin in sys.argv[1:]:
+    name, _, wanted = pin.partition("==")
+    try:
+        found = version(name)
+    except PackageNotFoundError:
+        found = "nothing"
+    if found == "nothing" or (wanted and found != wanted):
+        print(f"pip: {pin} is asked for, {found} is there")
+"""
+
+
+def verify(recipe: Recipe, target: Target = LOCAL) -> list[str]:
+    """What the environment at the recipe's prefix lacks of what the recipe asks for; [] when it meets it.
+
+    The way to take an environment the user already has instead of installing one: every
+    pinned conda package (looked up in `conda-meta`), every pinned pip package (asked to the
+    python of the prefix) and the recipe's check on the executables of that prefix. Reads
+    only. ponytail: a pip URL or path is not looked up, and `>=` counts as "is there".
+    """
+    lines = [f'p={_prefix(recipe)}', '[ -d "$p" ] || { echo "there is no directory $p"; exit 0; }',
+             'has() { ls "$p"/conda-meta/$1 >/dev/null 2>&1; }']
+    for name, version in map(_pin, recipe.conda):
+        # conda's `=1.2` takes 1.2 and 1.2.x; a file there is name-version-build.json
+        globs = [f"{name}-{version}-*.json", f"{name}-{version}.*-*.json"] if version else [f"{name}-[0-9]*-*.json"]
+        wanted = shlex.quote(f"conda: {name}{'=' + version if version else ''} is asked for and is not there")
+        lines.append(" || ".join([*(f"has {shlex.quote(glob)}" for glob in globs), f"echo {wanted}"]))
+    pins = ["==".join(filter(None, _pin(spec))) for spec in recipe.pip if "/" not in spec]
+    if pins:
+        lines.append(
+            f'"$p/bin/python" -c {shlex.quote(_PIP_PINS)} {shlex.join(pins)} 2>/dev/null'
+            ' || echo "pip: no working python at $p/bin/python"'
+        )
+    lacks = target.run("\n".join(lines), timeout=120).decode().splitlines()
+    inside = tuple(path for path in recipe.candidates if path.startswith(recipe.prefix + "/"))
+    if recipe.check and status(dataclasses.replace(recipe, candidates=inside, commands=()), target) != READY:
+        lacks.append(f"check: `{shlex.join(recipe.check)}` passes for none of {', '.join(inside) or 'its executables'}")
+    return lacks
+
+
+def remove(recipe: Recipe, target: Target = LOCAL) -> bool:
+    """Delete the prefix when ms_env installed it. False: nothing of ours there, nothing deleted."""
+    key = f"{recipe.name}@{target.host or 'local'}"
+    with _LOCK:
+        current = _INSTALLS.get(key)
+        if current is not None and not current.future.done():
+            raise RuntimeError(f"{recipe.name} is being installed on {target.host or 'this machine'}.")
+    script = (
+        f'p={_prefix(recipe)}\n[ -f "$p/{STAMP}" ] || [ -f "$p{_INSTALLING}" ] || {{ echo no; exit 0; }}\n'
+        f'rm -rf -- "$p" "$p{_INSTALLING}"'
+    )
+    return target.run(script, timeout=600).decode().strip() != "no"
+
+
+# ----------------------------------------------------------------------------
 # Installs: app-level background threads
 # ----------------------------------------------------------------------------
 
@@ -252,7 +378,8 @@ def ensure(recipe: Recipe, target: Target = LOCAL) -> Install:
     """Make sure the tool is there: start installing it, or join the install already running.
 
     Returns at once: wait on ``future`` and read ``lines`` for the log. Nothing is installed
-    where the tool is already usable.
+    where the tool is already usable. An install of ours made from another recipe is made
+    again (that is the update); an environment of the user is verified and left as it is.
     """
     key = f"{recipe.name}@{target.host or 'local'}"
     with _LOCK:
@@ -270,7 +397,15 @@ def _run_install(install: Install, recipe: Recipe, target: Target) -> None:
     install.future.set_running_or_notify_cancel()
     try:
         where = target.host or "this machine"
-        if status(recipe, target) == READY:
+        owner = _owner(recipe, target)
+        if owner == _USER:
+            lacks = verify(recipe, target)
+            if lacks:
+                raise StepFailed(
+                    f"{recipe.prefix} on {where} does not meet the {recipe.name} recipe:\n" + "\n".join(lacks)
+                )
+            install.lines.append(f"{recipe.prefix} on {where} meets the {recipe.name} recipe: used as it is.")
+        elif owner in ("", _stamp_text(recipe)) and status(recipe, target) == READY:
             install.lines.append(f"{recipe.name} is already usable on {where}.")
         else:
             for step in recipe_steps(recipe, target):
@@ -291,10 +426,13 @@ __all__ = [
     "READY",
     "Recipe",
     "RecipeStep",
+    "STAMP",
     "ToolSpec",
     "UNREACHABLE",
     "ensure",
     "locate",
     "recipe_steps",
+    "remove",
     "status",
+    "verify",
 ]

@@ -6,6 +6,7 @@ The lowest layer of MolSuite: the standard library, no Qt, and nothing of `ms_fl
 from ms_env.recipes import (
     MISSING,
     READY,
+    STAMP,
     UNREACHABLE,
     Install,
     Recipe,
@@ -14,7 +15,9 @@ from ms_env.recipes import (
     ensure,
     locate,
     recipe_steps,
+    remove,
     status,
+    verify,
 )
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step, run_steps
 from ms_env.target import LOCAL, Target, TargetError
@@ -26,6 +29,7 @@ __all__ = [
     "READY",
     "Recipe",
     "RecipeStep",
+    "STAMP",
     "Step",
     "StepFailed",
     "Target",
@@ -36,7 +40,9 @@ __all__ = [
     "find_environment_manager",
     "locate",
     "recipe_steps",
+    "remove",
     "run_step",
     "run_steps",
     "status",
+    "verify",
 ]

@@ -48,9 +48,33 @@ timeout = 1800
 ```
 
 Lookup on a target, first candidate whose check exits 0 wins: the paths the user
-registered, the managed install under `tools_home`, then `PATH`. With no
-conda, mamba or micromamba on the target, `[env]` downloads micromamba into
-`tools_home` first.
+registered, the managed install under `tools_home`, then `PATH`. `[env]` is created
+with micromamba: the one on the target's `PATH`, or one downloaded into `tools_home`.
+Another conda-type program is used only when the app names it (`manager=`).
+
+## Whose an environment is
+
+`ensure` stamps the prefix it installs. The stamp decides what may happen to it:
+
+| At the prefix | `ensure` | `remove` |
+|---|---|---|
+| Nothing | Creates it | Nothing to delete |
+| A stamp of this recipe | Nothing | Deletes it |
+| A stamp of another recipe (the TOML changed) | Creates it again: the update | Deletes it |
+| Something without a stamp: the user's own environment | Verifies it, never changes it | Leaves it |
+
+```python
+from ms_env import remove, verify
+
+mine = spec.recipe("/home/me/.myapp/tools", prefix="/home/me/envs/babel")   # an environment I already have
+verify(mine)    # [] when it meets the recipe, else what it lacks:
+                # ["conda: openbabel=3.1.1 is asked for and is not there"]
+remove(recipe)  # True: ms_env had installed it and it is gone
+```
+
+`verify` looks up every pinned conda package, every pinned pip package and the
+recipe's check, and only reads. An executable registered on its own (`extra_paths=`)
+is not an environment: it only has to pass the check.
 
 ## A target
 

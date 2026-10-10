@@ -7,7 +7,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,24 +78,16 @@ def run_steps(
 
 
 def find_environment_manager(*extra_variables: str) -> Path | None:
-    """Local micromamba/mamba/conda. ``extra_variables`` are app-specific overrides, checked first."""
-    candidates: list[Path] = []
-    for variable in (*extra_variables, "MOLSUITE_ENV_MANAGER", "MAMBA_EXE", "CONDA_EXE"):
-        configured = str(os.environ.get(variable) or "").strip()
-        if configured:
-            candidates.append(Path(configured).expanduser())
-    prefix = Path(sys.prefix).expanduser().resolve()
-    if prefix.parent.name == "envs":
-        base = prefix.parents[1]
-        for relative in ("bin/micromamba", "bin/mamba", "bin/conda", "condabin/conda"):
-            candidates.append(base / relative)
-    for name in ("micromamba", "mamba", "conda"):
-        resolved = shutil.which(name)
-        if resolved:
-            candidates.append(Path(resolved))
-    for candidate in candidates:
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return candidate.resolve()
+    """The program that creates environments here: micromamba, unless a variable names another.
+
+    ``extra_variables`` are app-specific overrides, read before ``MOLSUITE_ENV_MANAGER``; any
+    of them may name a conda or a mamba. None: the recipe downloads its own micromamba.
+    """
+    named = [str(os.environ.get(variable) or "").strip() for variable in (*extra_variables, "MOLSUITE_ENV_MANAGER")]
+    for candidate in (*filter(None, named), shutil.which("micromamba")):
+        path = Path(candidate or "").expanduser()
+        if path.is_file() and os.access(path, os.X_OK):
+            return path.resolve()
     return None
 
 
