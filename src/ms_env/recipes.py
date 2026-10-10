@@ -42,10 +42,12 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import io
 import json
 import re
 import shlex
 import subprocess
+import tarfile
 import threading
 import tomllib
 from concurrent.futures import Future
@@ -74,6 +76,9 @@ class RecipeStep:
     name: str
     argv: tuple[str, ...]
     timeout: float = 1800.0
+    # Files of this machine the command reads as a tar, each under its own name. Out of the
+    # repr, which is what the stamp of a tool is made of.
+    send: tuple[str, ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +92,10 @@ class Recipe:
     conda: tuple[str, ...] = ()  # what the environment at `prefix` has to hold
     pip: tuple[str, ...] = ()
     stamp: str = ""  # hash of what the TOML asks for, the same on every host
+    # What brings a prefix up to this recipe without making it again, for one of ours whose
+    # stamp names the same `base`. Without a base a recipe that changed is installed from nothing.
+    refresh: tuple[RecipeStep, ...] = ()
+    base: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,13 +227,41 @@ def _prefix(recipe: Recipe) -> str:
 
 
 def _stamp_text(recipe: Recipe) -> str:
-    return json.dumps({"name": recipe.name, "stamp": recipe.stamp})
+    return json.dumps({"name": recipe.name, "stamp": recipe.stamp, **({"base": recipe.base} if recipe.base else {})})
 
 
-def recipe_steps(recipe: Recipe, host: Host = LOCAL) -> list[Step]:
+def _base(owner: str) -> str:
+    """The base a stamp names; "" for what is not a stamp, or the stamp of a recipe without one."""
+    try:
+        return json.loads(owner).get("base", "")
+    except (ValueError, AttributeError):
+        return ""
+
+
+def _tar(paths: Iterable[str]) -> bytes:
+    held = io.BytesIO()
+    with tarfile.open(fileobj=held, mode="w") as tar:
+        for path in paths:
+            tar.add(path, arcname=Path(path).name)
+    return held.getvalue()
+
+
+def _step(step: RecipeStep, label: str, host: Host) -> Step:
+    if not step.send:
+        return Step(label + step.name, argv=_argv_on(step.argv, host), timeout=step.timeout)
+
+    def send() -> str:
+        host.run(shlex.join(step.argv), data=_tar(step.send), timeout=step.timeout)
+        return "sent " + ", ".join(Path(path).name for path in step.send)
+
+    return Step(label + step.name, call=send, timeout=step.timeout)
+
+
+def recipe_steps(recipe: Recipe, host: Host = LOCAL, refresh: bool = False) -> list[Step]:
     """The whole install: clear what ms_env left at the prefix, run the recipe, stamp it.
 
-    The first step fails on a prefix that holds something ms_env did not install.
+    The first step fails on a prefix that holds something ms_env did not install. With
+    `refresh` the prefix stays and only `recipe.refresh` runs before the stamp.
     """
     label, prefix = (f"{host.address}: " if host.address else ""), _prefix(recipe)
     clear = (
@@ -239,11 +276,10 @@ def recipe_steps(recipe: Recipe, host: Host = LOCAL) -> list[Step]:
         f'&& rm -f "$p{_INSTALLING}"'
     )
     steps = (
-        RecipeStep(f"prepare {recipe.prefix}", ("sh", "-c", clear), 300.0),
-        *recipe.steps,
+        *(recipe.refresh if refresh else (RecipeStep(f"prepare {recipe.prefix}", ("sh", "-c", clear), 300.0), *recipe.steps)),
         RecipeStep(f"record the {recipe.name} install", ("sh", "-c", stamp), 60.0),
     )
-    return [Step(label + step.name, argv=_argv_on(step.argv, host), timeout=step.timeout) for step in steps]
+    return [_step(step, label, host) for step in steps]
 
 
 def _locate_script(recipe: Recipe) -> str:
@@ -379,7 +415,8 @@ def ensure(recipe: Recipe, host: Host = LOCAL) -> Install:
 
     Returns at once: wait on ``future`` and read ``lines`` for the log. Nothing is installed
     where the tool is already usable. An install of ours made from another recipe is made
-    again (that is the update); an environment of the user is verified and left as it is.
+    again, or brought up to this one where it stands when the recipe says how (that is the
+    update); an environment of the user is verified and left as it is.
     """
     key = f"{recipe.name}@{host.address or 'local'}"
     with _LOCK:
@@ -408,7 +445,7 @@ def _run_install(install: Install, recipe: Recipe, host: Host) -> None:
         elif owner in ("", _stamp_text(recipe)) and status(recipe, host) == READY:
             install.lines.append(f"{recipe.name} is already usable on {where}.")
         else:
-            for step in recipe_steps(recipe, host):
+            for step in recipe_steps(recipe, host, refresh=bool(recipe.base) and _base(owner) == recipe.base):
                 run_step(step, install.lines.append)
             state = status(recipe, host)
             if state != READY:

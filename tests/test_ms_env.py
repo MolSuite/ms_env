@@ -202,3 +202,46 @@ def test_run_steps_stops_at_the_first_failure():
     assert "unreachable" not in seen
 
 
+
+
+def test_a_recipe_with_a_base_is_updated_where_it_stands(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    sent = tmp_path / "code.txt"
+    sent.write_text("one")
+    recipe = _plain_spec(tmp_path)
+    refresh = (tools.RecipeStep("send the code", ("tar", "-x", "-C", recipe.prefix), 30.0, send=(str(sent),)),)
+    recipe = dataclasses.replace(recipe, base="python 3.12", refresh=refresh, steps=(*recipe.steps, *refresh))
+    tools.ensure(recipe).future.result(timeout=30)
+    assert Path(recipe.prefix, "code.txt").read_text() == "one"
+
+    Path(recipe.prefix, "left-over").write_text("of the install before")
+    sent.write_text("two")
+    newer = dataclasses.replace(recipe, stamp="the code changed")
+    tools.ensure(newer).future.result(timeout=30)
+    assert Path(recipe.prefix, "left-over").exists()  # the prefix was not made again
+    assert Path(recipe.prefix, "code.txt").read_text() == "two"
+    assert json.loads(Path(recipe.prefix, tools.STAMP).read_text()) == {
+        "name": "faketool", "stamp": "the code changed", "base": "python 3.12"}
+
+    other = dataclasses.replace(newer, base="python 3.13", stamp="another python")
+    tools.ensure(other).future.result(timeout=30)
+    assert not Path(recipe.prefix, "left-over").exists()  # another base: from nothing
+
+
+def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
+    from ms_env import app
+
+    recipe = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
+                              cache=tmp_path)
+    wheel = next(tmp_path.glob("ms_env-*/ms_env-*.whl"))  # this checkout, built
+    install = recipe.refresh[1].argv
+    assert f"/far/env/.ms_env.d/{wheel.name}" in install and f"pytest=={pytest.__version__}" in install
+    assert set(recipe.refresh[0].send) == {str(tmp_path / "constraints.txt"), str(tmp_path / "constraints-pip.txt"),
+                                           str(wheel)}
+    pins = (tmp_path / "constraints.txt").read_text().splitlines()
+    assert f"pytest=={pytest.__version__}" in pins and not any(pin.startswith("ms-env==") for pin in pins)
+    assert set((tmp_path / "constraints-pip.txt").read_text().splitlines()) <= set(pins)
+    assert recipe.base and recipe.steps[-len(recipe.refresh):] == recipe.refresh
+    again = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
+                             cache=tmp_path)
+    assert again.stamp == recipe.stamp and app._checkout("pytest") is None

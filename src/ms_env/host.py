@@ -35,8 +35,14 @@ class Host:
             said = done.stderr.decode(errors="replace").strip()
             if "Permission denied" in said:  # BatchMode: ssh does not ask, and here nobody could answer
                 said += f"\nssh has to log in to {self.address} with a key, without asking: see ssh-copy-id"
+            if "Host key verification failed" in said:  # the same: nobody here to say yes to a new key
+                said += f"\nssh does not know {self.address} yet: log in to it once by hand (`ssh {self.address}`)"
             raise HostError(f"`{command[:200]}` on {self.address or 'this machine'}: {said or done.returncode}")
         return done.stdout
+
+    def home(self) -> str:
+        """The home of the account there: where a path of ours on that machine starts."""
+        return self.run('printf %s "$HOME"', timeout=60).decode()
 
 
 LOCAL = Host()

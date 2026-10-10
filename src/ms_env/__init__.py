@@ -3,6 +3,7 @@ install it, a host says where, and `ensure` applies one to the other.
 
 The lowest layer of MolSuite: the standard library, no Qt, and nothing of `ms_flow`.
 """
+from ms_env.app import app_recipe
 from ms_env.recipes import (
     MISSING,
     READY,
@@ -36,6 +37,7 @@ __all__ = [
     "HostError",
     "ToolSpec",
     "UNREACHABLE",
+    "app_recipe",
     "ensure",
     "find_environment_manager",
     "locate",
