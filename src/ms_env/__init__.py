@@ -1,5 +1,5 @@
 """Environments for MolSuite apps: a recipe says how to tell that a tool works and how to
-install it, a target says where, and `ensure` applies one to the other.
+install it, a host says where, and `ensure` applies one to the other.
 
 The lowest layer of MolSuite: the standard library, no Qt, and nothing of `ms_flow`.
 """
@@ -20,7 +20,7 @@ from ms_env.recipes import (
     verify,
 )
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step, run_steps
-from ms_env.target import LOCAL, Target, TargetError
+from ms_env.host import LOCAL, Host, HostError
 
 __all__ = [
     "Install",
@@ -32,8 +32,8 @@ __all__ = [
     "STAMP",
     "Step",
     "StepFailed",
-    "Target",
-    "TargetError",
+    "Host",
+    "HostError",
     "ToolSpec",
     "UNREACHABLE",
     "ensure",

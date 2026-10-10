@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import ms_env as tools
-from ms_env import Target, run_step
+from ms_env import Host, run_step
 
 _TOML = """
 [tool]
@@ -41,7 +41,7 @@ def _fake_exe(path: Path, *, works: bool = True) -> Path:
     return path
 
 
-def test_spec_binds_per_target(tmp_path):
+def test_spec_binds_per_host(tmp_path):
     spec = _spec(tmp_path)
     assert spec.info["label"] == "Fake tool"
 
@@ -52,7 +52,7 @@ def test_spec_binds_per_target(tmp_path):
 
     remote = spec.recipe("/scratch/tools", prefix="/opt/mine/", extra_paths=["/usr/local/bin/faketool"])
     assert remote.candidates == ("/usr/local/bin/faketool", "/opt/mine/bin/faketool")
-    steps = tools.recipe_steps(remote, Target("mario@login.hpc"))
+    steps = tools.recipe_steps(remote, Host("mario@login.hpc"))
     assert [step.name.removeprefix("mario@login.hpc: ") for step in steps] == [
         "clear /opt/mine", "create the faketool environment", "pip install into faketool", "stamp the faketool install",
     ]
@@ -183,11 +183,11 @@ def test_the_environment_of_the_user_is_verified_and_never_changed(tmp_path, mon
     assert tools.verify(meets) == [f"check: `'{{exe}}' --ok` passes for none of {mine}/bin/faketool"]
 
 
-def test_a_target_runs_commands_and_says_why_one_failed():
-    assert Target().run("cat; echo there", b"here ") == b"here there\n"
-    assert Target("login.hpc").argv("ls") == ["ssh", "-o", "BatchMode=yes", "login.hpc", "ls"]
-    with pytest.raises(tools.TargetError, match="this machine: no such thing"):
-        Target().run("echo no such thing >&2; exit 3")
+def test_a_host_runs_commands_and_says_why_one_failed():
+    assert Host().run("cat; echo there", b"here ") == b"here there\n"
+    assert Host("login.hpc").argv("ls") == ["ssh", "-o", "BatchMode=yes", "login.hpc", "ls"]
+    with pytest.raises(tools.HostError, match="this machine: no such thing"):
+        Host().run("echo no such thing >&2; exit 3")
 
 
 def test_run_steps_stops_at_the_first_failure():

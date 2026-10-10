@@ -1,12 +1,12 @@
 """External tools: find one that already works, or install it -- driven by a TOML file.
 
 The app ships one TOML per tool: where to look for it, how to tell it works, how to
-install it. A recipe is that TOML bound to one target (see ``ms_env.target``): this
+install it. A recipe is that TOML bound to one host (see ``ms_env.host``): this
 machine, or a host over ssh. ``status`` says whether the tool works there and ``ensure``
 installs it when it does not, on a daemon thread that belongs to the app, not to a
 project (none has to be open).
 
-Lookup on a target, first candidate whose check exits 0 wins: paths the user
+Lookup on a host, first candidate whose check exits 0 wins: paths the user
 registered, the managed install under ``tools_home``, then ``PATH``.
 
 Whose a prefix is decides what happens to it. ``ensure`` stamps what it installs: a
@@ -36,7 +36,7 @@ TOML layout (every section but ``[tool]`` and ``[locate]`` is optional)::
     argv = ["curl", "-fsSL", "-o", "{prefix}/model.pt", "https://..."]
     timeout = 1800
 
-Every command runs through ``sh`` on the target, so targets are POSIX hosts.
+Every command runs through ``sh`` on the host, so a host is a POSIX machine.
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ms_env.steps import Step, StepFailed, run_step
-from ms_env.target import LOCAL, Target
+from ms_env.host import LOCAL, Host
 
 READY = "ready"
 MISSING = "missing"
@@ -66,7 +66,7 @@ _USER = "user"
 
 
 # ----------------------------------------------------------------------------
-# Spec (the TOML, still templated) -> Recipe (concrete for one target)
+# Spec (the TOML, still templated) -> Recipe (concrete for one host)
 # ----------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +86,7 @@ class Recipe:
     steps: tuple[RecipeStep, ...]
     conda: tuple[str, ...] = ()  # what the environment at `prefix` has to hold
     pip: tuple[str, ...] = ()
-    stamp: str = ""  # hash of what the TOML asks for, the same on every target
+    stamp: str = ""  # hash of what the TOML asks for, the same on every host
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +132,7 @@ class ToolSpec:
         extra_paths: Iterable[str] = (),
         manager: str = "",
     ) -> Recipe:
-        """Bind the templates to one target. ``tools_home``/``prefix`` are paths *on that target*.
+        """Bind the templates to one host. ``tools_home``/``prefix`` are paths *on that host*.
 
         ``prefix`` is a location the user chose instead of the managed one: an environment of
         their own (checked, never changed) or a place to install into. ``extra_paths`` are
@@ -204,11 +204,11 @@ def _find_or_bootstrap_manager(hint: str, tools_home: str) -> str:
 
 
 # ----------------------------------------------------------------------------
-# A recipe on a target
+# A recipe on a host
 # ----------------------------------------------------------------------------
 
-def _argv_on(argv: Iterable[str], target: Target) -> list[str]:
-    return list(argv) if target.host is None else target.argv(shlex.join(argv))
+def _argv_on(argv: Iterable[str], host: Host) -> list[str]:
+    return list(argv) if host.address is None else host.argv(shlex.join(argv))
 
 
 def _prefix(recipe: Recipe) -> str:
@@ -221,12 +221,12 @@ def _stamp_text(recipe: Recipe) -> str:
     return json.dumps({"name": recipe.name, "stamp": recipe.stamp})
 
 
-def recipe_steps(recipe: Recipe, target: Target = LOCAL) -> list[Step]:
+def recipe_steps(recipe: Recipe, host: Host = LOCAL) -> list[Step]:
     """The whole install: clear what ms_env left at the prefix, run the recipe, stamp it.
 
     The first step fails on a prefix that holds something ms_env did not install.
     """
-    label, prefix = (f"{target.host}: " if target.host else ""), _prefix(recipe)
+    label, prefix = (f"{host.address}: " if host.address else ""), _prefix(recipe)
     clear = (
         f'p={prefix}\n'
         f'if [ -n "$(ls -A "$p" 2>/dev/null)" ] && [ ! -f "$p/{STAMP}" ] && [ ! -f "$p{_INSTALLING}" ]; then\n'
@@ -243,7 +243,7 @@ def recipe_steps(recipe: Recipe, target: Target = LOCAL) -> list[Step]:
         *recipe.steps,
         RecipeStep(f"stamp the {recipe.name} install", ("sh", "-c", stamp), 60.0),
     )
-    return [Step(label + step.name, argv=_argv_on(step.argv, target), timeout=step.timeout) for step in steps]
+    return [Step(label + step.name, argv=_argv_on(step.argv, host), timeout=step.timeout) for step in steps]
 
 
 def _locate_script(recipe: Recipe) -> str:
@@ -258,34 +258,34 @@ def _locate_script(recipe: Recipe) -> str:
     )
 
 
-def locate(recipe: Recipe, target: Target = LOCAL, timeout: float = 60.0) -> tuple[str, str]:
+def locate(recipe: Recipe, host: Host = LOCAL, timeout: float = 60.0) -> tuple[str, str]:
     """(READY, executable) or (MISSING | UNREACHABLE, ""). Blocks on a subprocess: keep it off UI threads."""
     try:
         result = subprocess.run(
-            target.argv(_locate_script(recipe)),
+            host.argv(_locate_script(recipe)),
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
         )
     except subprocess.TimeoutExpired:
-        return (UNREACHABLE if target.host else MISSING), ""
+        return (UNREACHABLE if host.address else MISSING), ""
     found = result.stdout.strip().splitlines()
     if result.returncode == 0 and found:
         return READY, found[-1]
-    return (UNREACHABLE if target.host and result.returncode == _SSH_CONNECT_FAILED else MISSING), ""
+    return (UNREACHABLE if host.address and result.returncode == _SSH_CONNECT_FAILED else MISSING), ""
 
 
-def status(recipe: Recipe, target: Target = LOCAL) -> str:
+def status(recipe: Recipe, host: Host = LOCAL) -> str:
     """READY, MISSING or UNREACHABLE. Blocks like `locate`, which also says where the tool is."""
-    return locate(recipe, target)[0]
+    return locate(recipe, host)[0]
 
 
 # ----------------------------------------------------------------------------
 # Whose the prefix is, and whether it holds what the recipe asks for
 # ----------------------------------------------------------------------------
 
-def _owner(recipe: Recipe, target: Target) -> str:
+def _owner(recipe: Recipe, host: Host) -> str:
     """The stamp of a prefix ms_env installed, `_USER` for one that holds something else, "" for none."""
     script = (
         f'p={_prefix(recipe)}\n'
@@ -293,7 +293,7 @@ def _owner(recipe: Recipe, target: Target) -> str:
         f'[ -f "$p{_INSTALLING}" ] && {{ echo installing; exit 0; }}\n'
         f'[ -n "$(ls -A "$p" 2>/dev/null)" ] && echo {_USER}\nexit 0'
     )
-    return target.run(script, timeout=60).decode().strip()
+    return host.run(script, timeout=60).decode().strip()
 
 
 def _pin(spec: str) -> tuple[str, str]:
@@ -317,7 +317,7 @@ for pin in sys.argv[1:]:
 """
 
 
-def verify(recipe: Recipe, target: Target = LOCAL) -> list[str]:
+def verify(recipe: Recipe, host: Host = LOCAL) -> list[str]:
     """What the environment at the recipe's prefix lacks of what the recipe asks for; [] when it meets it.
 
     The way to take an environment the user already has instead of installing one: every
@@ -338,25 +338,25 @@ def verify(recipe: Recipe, target: Target = LOCAL) -> list[str]:
             f'"$p/bin/python" -c {shlex.quote(_PIP_PINS)} {shlex.join(pins)} 2>/dev/null'
             ' || echo "pip: no working python at $p/bin/python"'
         )
-    lacks = target.run("\n".join(lines), timeout=120).decode().splitlines()
+    lacks = host.run("\n".join(lines), timeout=120).decode().splitlines()
     inside = tuple(path for path in recipe.candidates if path.startswith(recipe.prefix + "/"))
-    if recipe.check and status(dataclasses.replace(recipe, candidates=inside, commands=()), target) != READY:
+    if recipe.check and status(dataclasses.replace(recipe, candidates=inside, commands=()), host) != READY:
         lacks.append(f"check: `{shlex.join(recipe.check)}` passes for none of {', '.join(inside) or 'its executables'}")
     return lacks
 
 
-def remove(recipe: Recipe, target: Target = LOCAL) -> bool:
+def remove(recipe: Recipe, host: Host = LOCAL) -> bool:
     """Delete the prefix when ms_env installed it. False: nothing of ours there, nothing deleted."""
-    key = f"{recipe.name}@{target.host or 'local'}"
+    key = f"{recipe.name}@{host.address or 'local'}"
     with _LOCK:
         current = _INSTALLS.get(key)
         if current is not None and not current.future.done():
-            raise RuntimeError(f"{recipe.name} is being installed on {target.host or 'this machine'}.")
+            raise RuntimeError(f"{recipe.name} is being installed on {host.address or 'this machine'}.")
     script = (
         f'p={_prefix(recipe)}\n[ -f "$p/{STAMP}" ] || [ -f "$p{_INSTALLING}" ] || {{ echo no; exit 0; }}\n'
         f'rm -rf -- "$p" "$p{_INSTALLING}"'
     )
-    return target.run(script, timeout=600).decode().strip() != "no"
+    return host.run(script, timeout=600).decode().strip() != "no"
 
 
 # ----------------------------------------------------------------------------
@@ -374,14 +374,14 @@ _INSTALLS: dict[str, Install] = {}
 _LOCK = threading.Lock()
 
 
-def ensure(recipe: Recipe, target: Target = LOCAL) -> Install:
+def ensure(recipe: Recipe, host: Host = LOCAL) -> Install:
     """Make sure the tool is there: start installing it, or join the install already running.
 
     Returns at once: wait on ``future`` and read ``lines`` for the log. Nothing is installed
     where the tool is already usable. An install of ours made from another recipe is made
     again (that is the update); an environment of the user is verified and left as it is.
     """
-    key = f"{recipe.name}@{target.host or 'local'}"
+    key = f"{recipe.name}@{host.address or 'local'}"
     with _LOCK:
         current = _INSTALLS.get(key)
         if current is not None and not current.future.done():
@@ -389,28 +389,28 @@ def ensure(recipe: Recipe, target: Target = LOCAL) -> Install:
         install = _INSTALLS[key] = Install(key)
     # ponytail: one daemon thread per install; a pool if installs pile up.
     # Daemon on purpose: quitting the app must not wait 30 min for a conda solve.
-    threading.Thread(target=_run_install, args=(install, recipe, target), name=f"ms_env-{key}", daemon=True).start()
+    threading.Thread(target=_run_install, args=(install, recipe, host), name=f"ms_env-{key}", daemon=True).start()
     return install
 
 
-def _run_install(install: Install, recipe: Recipe, target: Target) -> None:
+def _run_install(install: Install, recipe: Recipe, host: Host) -> None:
     install.future.set_running_or_notify_cancel()
     try:
-        where = target.host or "this machine"
-        owner = _owner(recipe, target)
+        where = host.address or "this machine"
+        owner = _owner(recipe, host)
         if owner == _USER:
-            lacks = verify(recipe, target)
+            lacks = verify(recipe, host)
             if lacks:
                 raise StepFailed(
                     f"{recipe.prefix} on {where} does not meet the {recipe.name} recipe:\n" + "\n".join(lacks)
                 )
             install.lines.append(f"{recipe.prefix} on {where} meets the {recipe.name} recipe: used as it is.")
-        elif owner in ("", _stamp_text(recipe)) and status(recipe, target) == READY:
+        elif owner in ("", _stamp_text(recipe)) and status(recipe, host) == READY:
             install.lines.append(f"{recipe.name} is already usable on {where}.")
         else:
-            for step in recipe_steps(recipe, target):
+            for step in recipe_steps(recipe, host):
                 run_step(step, install.lines.append)
-            state = status(recipe, target)
+            state = status(recipe, host)
             if state != READY:
                 raise StepFailed(f"{recipe.name}: every step ran but the tool is still {state} on {where}.")
     except Exception as exc:  # noqa: BLE001 -- whatever broke, dependents must see a failure

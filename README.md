@@ -3,11 +3,11 @@
 Environments for MolSuite apps: find an external tool that already works, or install
 it, on this machine or on a host reached over `ssh`. Standard library only.
 
-A **recipe** says how to tell that a tool works and how to install it. A **target**
+A **recipe** says how to tell that a tool works and how to install it. A **host**
 says where. `ms_env` applies one to the other.
 
 ```python
-from ms_env import READY, Target, ToolSpec, ensure, locate
+from ms_env import READY, Host, ToolSpec, ensure, locate
 
 spec = ToolSpec.load("openbabel.toml")
 
@@ -17,7 +17,7 @@ if state != READY:
     install = ensure(recipe)                        # returns at once: a daemon thread installs
     install.future.result()                         # wait; `install.lines` is the live log
 
-cluster = Target("me@login.hpc")                    # as `ssh` knows it
+cluster = Host("me@login.hpc")                    # as `ssh` knows it
 ensure(spec.recipe("/home/me/.myapp/tools"), cluster).future.result()
 ```
 
@@ -47,9 +47,9 @@ argv = ["curl", "-fsSL", "-o", "{prefix}/model.pt", "https://..."]
 timeout = 1800
 ```
 
-Lookup on a target, first candidate whose check exits 0 wins: the paths the user
+Lookup on a host, first candidate whose check exits 0 wins: the paths the user
 registered, the managed install under `tools_home`, then `PATH`. `[env]` is created
-with micromamba: the one on the target's `PATH`, or one downloaded into `tools_home`.
+with micromamba: the one on the host's `PATH`, or one downloaded into `tools_home`.
 Another conda-type program is used only when the app names it (`manager=`).
 
 ## Whose an environment is
@@ -76,12 +76,12 @@ remove(recipe)  # True: ms_env had installed it and it is gone
 recipe's check, and only reads. An executable registered on its own (`extra_paths=`)
 is not an environment: it only has to pass the check.
 
-## A target
+## A host
 
-`Target()` is this machine. `Target("host")` runs every command through the system's
+`Host()` is this machine. `Host("me@login.hpc")` runs every command through the system's
 `ssh` with `BatchMode=yes`: users, keys and jumps come from `~/.ssh/config`, the key
 logs in or the command fails at once, no credential is handled and nothing is left
-listening on the other side. Targets are POSIX hosts; only Linux is supported.
+listening on the other side. A host is a POSIX machine; only Linux is supported.
 
 ## Install
 
