@@ -223,6 +223,12 @@ def test_a_recipe_with_a_base_is_updated_where_it_stands(tmp_path, monkeypatch):
     assert json.loads(Path(recipe.prefix, tools.STAMP).read_text()) == {
         "name": "faketool", "stamp": "the code changed", "base": "python 3.12"}
 
+    held = dataclasses.replace(newer, stamp="changed with a job running from it")
+    error = tools.ensure(held, busy=lambda: "2 jobs run from it").future.exception(timeout=30)
+    assert "2 jobs run from it" in str(error)
+    assert json.loads(Path(recipe.prefix, tools.STAMP).read_text())["stamp"] == "the code changed"  # untouched
+    tools.ensure(newer, busy=lambda: "2 jobs run from it").future.result(timeout=30)  # as asked: nobody is asked
+
     other = dataclasses.replace(newer, base="python 3.13", stamp="another python")
     tools.ensure(other).future.result(timeout=30)
     assert not Path(recipe.prefix, "left-over").exists()  # another base: from nothing

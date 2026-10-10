@@ -410,13 +410,16 @@ _INSTALLS: dict[str, Install] = {}
 _LOCK = threading.Lock()
 
 
-def ensure(recipe: Recipe, host: Host = LOCAL) -> Install:
+def ensure(recipe: Recipe, host: Host = LOCAL, busy: Callable[[], str] | None = None) -> Install:
     """Make sure the tool is there: start installing it, or join the install already running.
 
     Returns at once: wait on ``future`` and read ``lines`` for the log. Nothing is installed
     where the tool is already usable. An install of ours made from another recipe is made
     again, or brought up to this one where it stands when the recipe says how (that is the
     update); an environment of the user is verified and left as it is.
+
+    ``busy`` is asked only before an install of ours is changed: what it returns is why that
+    cannot be done now (something is running from it), and the install fails saying so.
     """
     key = f"{recipe.name}@{host.address or 'local'}"
     with _LOCK:
@@ -426,11 +429,11 @@ def ensure(recipe: Recipe, host: Host = LOCAL) -> Install:
         install = _INSTALLS[key] = Install(key)
     # ponytail: one daemon thread per install; a pool if installs pile up.
     # Daemon on purpose: quitting the app must not wait 30 min for a conda solve.
-    threading.Thread(target=_run_install, args=(install, recipe, host), name=f"ms_env-{key}", daemon=True).start()
+    threading.Thread(target=_run_install, args=(install, recipe, host, busy), name=f"ms_env-{key}", daemon=True).start()
     return install
 
 
-def _run_install(install: Install, recipe: Recipe, host: Host) -> None:
+def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[], str] | None = None) -> None:
     install.future.set_running_or_notify_cancel()
     try:
         where = host.address or "this machine"
@@ -445,6 +448,9 @@ def _run_install(install: Install, recipe: Recipe, host: Host) -> None:
         elif owner in ("", _stamp_text(recipe)) and status(recipe, host) == READY:
             install.lines.append(f"{recipe.name} is already usable on {where}.")
         else:
+            why = busy() if busy and owner.startswith("{") else ""  # a stamp: an install of ours that ended
+            if why:
+                raise StepFailed(f"{recipe.name} on {where} is not as this recipe asks, and is left as it is: {why}")
             for step in recipe_steps(recipe, host, refresh=bool(recipe.base) and _base(owner) == recipe.base):
                 run_step(step, install.lines.append)
             state = status(recipe, host)
