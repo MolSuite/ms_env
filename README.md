@@ -76,6 +76,10 @@ remove(recipe)  # True: ms_env had installed it and it is gone
 recipe's check, and only reads. An executable registered on its own (`extra_paths=`)
 is not an environment: it only has to pass the check.
 
+`ensure(recipe, host, busy=why)` asks `why()` before it changes an install of its own:
+a reason (`"2 jobs are running from it"`) makes the install fail and leaves the prefix
+as it is.
+
 ## A host
 
 `Host()` is this machine. `Host("me@login.hpc")` runs every command through the system's
@@ -83,8 +87,24 @@ is not an environment: it only has to pass the check.
 logs in or the command fails at once, no credential is handled and nothing is left
 listening on the other side. A host is a POSIX machine; only Linux is supported.
 
+## The environment of an app
+
+`app_recipe` makes the recipe that gives a host the environment an app runs in here:
+the same Python, the same versions, and the code of a source checkout as it is now.
+
+```python
+from ms_env import app_recipe
+
+home = cluster.home()
+recipe = app_recipe("myapp", ["myapp"], ["myapp"], prefix=f"{home}/.myapp/env",
+                    tools_home=f"{home}/.myapp/tools", cache="/home/me/.myapp/cache/wheels")
+ensure(recipe, cluster).future.result()
+```
+
 ## Install
 
 ```bash
 pip install ms_env
 ```
+
+Documentation: <https://molsuite.github.io/ms_env/>

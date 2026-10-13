@@ -33,6 +33,7 @@ dev = ["pytest>=7.0"]
 
 [project.urls]
 Homepage = "https://github.com/MolSuite/ms_env"
+Documentation = "https://molsuite.github.io/ms_env/"
 Issues = "https://github.com/MolSuite/ms_env/issues"
 
 # The release tag is the only version there is: nothing to bump by hand, and
