@@ -5,7 +5,22 @@ account log in or the command fails at once, and nothing is left listening on th
 """
 from __future__ import annotations
 
+import platform as _platform
 import subprocess
+from pathlib import Path
+
+# (system, machine) -> the platform as conda names it, which is also how a recipe names builds.
+_PLATFORMS = {
+    ("linux", "x86_64"): "linux-64", ("linux", "aarch64"): "linux-aarch64",
+    ("darwin", "x86_64"): "osx-64", ("darwin", "arm64"): "osx-arm64",
+    ("windows", "amd64"): "win-64", ("windows", "x86_64"): "win-64",
+}
+
+
+def conda_platform(system: str, machine: str) -> str:
+    """`linux-64`, `osx-arm64`, `win-64`...; `system-machine` for one conda has no name for."""
+    system, machine = system.lower(), machine.lower()
+    return _PLATFORMS.get((system, machine), f"{system}-{machine}")
 
 
 class HostError(RuntimeError):
@@ -23,7 +38,8 @@ class Host:
         return f"Host({self.address!r})"
 
     def argv(self, command: str) -> list[str]:
-        """What to execute here for `sh` to run `command` there."""
+        """What to execute here for `sh` to run `command` there. This machine needs an `sh` for
+        that, which Windows lacks: what ms_env does here it does in Python, not through this."""
         return ["sh", "-c", command] if self.address is None else [*self.ssh, self.address, command]
 
     def run(self, command: str, data=b"", timeout: float = 600) -> bytes:
@@ -42,9 +58,17 @@ class Host:
 
     def home(self) -> str:
         """The home of the account there: where a path of ours on that machine starts."""
+        if self.address is None:
+            return str(Path.home())
         return self.run('printf %s "$HOME"', timeout=60).decode()
+
+    def platform(self) -> str:
+        """The platform there, as conda names it (see `conda_platform`)."""
+        if self.address is None:
+            return conda_platform(_platform.system(), _platform.machine())
+        return conda_platform(*self.run("uname -sm", timeout=60).decode().split()[:2])
 
 
 LOCAL = Host()
 
-__all__ = ["LOCAL", "Host", "HostError"]
+__all__ = ["LOCAL", "Host", "HostError", "conda_platform"]

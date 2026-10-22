@@ -13,9 +13,9 @@ version = "3.1.1"                         # pinned here; never a user option
 prefix = "{tools_home}/{name}/{version}"  # the default
 
 [locate]
-paths = ["{prefix}/bin/obabel"]           # where the install puts it
+paths = ["{bin}/obabel"]                  # where the install puts it; +".exe" on Windows
 commands = ["obabel"]                     # looked up on PATH
-check = ["{exe}", "-V"]                   # {exe} = the candidate
+check = ["{exe}", "-V"]                   # {exe} = the candidate; none: being there is enough
 
 [env]                                     # a conda prefix at {prefix}
 conda = ["openbabel={version}"]
@@ -23,10 +23,25 @@ pip = []
 channels = ["conda-forge"]                # the default
 
 [[install]]                               # plain steps, after [env]
-name = "download the model"
-argv = ["curl", "-fsSL", "-o", "{prefix}/model.pt", "https://..."]
+name = "fetch the weights"
+argv = ["{python}", "-m", "tool.fetch", "{prefix}/weights"]
 timeout = 1800
+
+[[install]]                               # a download, checked, per platform
+name = "download the binary"
+to = "{prefix}/tool"                      # an archive is unpacked into `to`; a file keeps ".exe"
+download.linux-64 = { url = "https://.../tool_linux", sha256 = "..." }
+download.win-64 = { url = "https://.../tool.exe", sha256 = "..." }
+# the same file everywhere: download = { url = "...", sha256 = "..." }
 ```
+
+`{bin}` and `{python}` are where a conda environment keeps them: `{prefix}/bin` and
+`{prefix}/bin/python`, or `{prefix}/Library/bin` and `{prefix}/python.exe` on Windows.
+Platforms are named as conda names them (`linux-64`, `linux-aarch64`, `osx-64`,
+`osx-arm64`, `win-64`; `Host.platform()` says the host's). A download needs its sha256.
+On a platform none of its downloads names, the tool has no build: `recipe.unsupported`
+says so and `ensure` fails with it. A remote host gets a download made and checked here,
+then sent over `ssh`: it needs no `curl`.
 
 `ToolSpec.load(path)` reads the file, and `spec.recipe(tools_home)` binds its
 templates to one host. `tools_home` is a path on that host.
@@ -45,6 +60,7 @@ recipe = spec.recipe("/home/me/.myapp/tools")
 | `prefix=` | A location in place of the managed one: an environment of their own, or a place to install into |
 | `extra_paths=` | Executables the user registered, tried before anything else |
 | `manager=` | A conda-type program to use on the host in place of micromamba |
+| `platform=` | The host's platform (`Host.platform()`); this machine's by default |
 
 ### Finding a tool
 

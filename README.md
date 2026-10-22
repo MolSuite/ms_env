@@ -33,19 +33,34 @@ version = "3.1.1"                         # pinned here; never a user option
 prefix = "{tools_home}/{name}/{version}"  # the default
 
 [locate]
-paths = ["{prefix}/bin/obabel"]           # where the install puts it
+paths = ["{bin}/obabel"]                  # where the install puts it; +".exe" on Windows
 commands = ["obabel"]                     # looked up on PATH
-check = ["{exe}", "-V"]                   # {exe} = the candidate
+check = ["{exe}", "-V"]                   # {exe} = the candidate; none: being there is enough
 
 [env]                                     # a conda prefix at {prefix}
 conda = ["openbabel={version}"]
 pip = []
 
 [[install]]                               # plain steps, after [env]
-name = "download the model"
-argv = ["curl", "-fsSL", "-o", "{prefix}/model.pt", "https://..."]
+name = "fetch the weights"
+argv = ["{python}", "-m", "tool.fetch", "{prefix}/weights"]
 timeout = 1800
+
+[[install]]                               # a download, checked, per platform
+name = "download the binary"
+to = "{prefix}/tool"                      # an archive is unpacked into `to`; a file keeps ".exe"
+download.linux-64 = { url = "https://.../tool_linux", sha256 = "..." }
+download.win-64 = { url = "https://.../tool.exe", sha256 = "..." }
+# the same file everywhere: download = { url = "...", sha256 = "..." }
 ```
+
+`{bin}` and `{python}` are where a conda environment keeps them: `{prefix}/bin` and
+`{prefix}/bin/python`, or `{prefix}/Library/bin` and `{prefix}/python.exe` on Windows.
+Platforms are named as conda names them (`linux-64`, `linux-aarch64`, `osx-64`,
+`osx-arm64`, `win-64`; `Host.platform()` says the host's). A download needs its sha256.
+On a platform none of its downloads names, the tool has no build: `recipe.unsupported`
+says so and `ensure` fails with it. A remote host gets a download made and checked here,
+then sent over `ssh`: it needs no `curl`.
 
 Lookup on a host, first candidate whose check exits 0 wins: the paths the user
 registered, the managed install under `tools_home`, then `PATH`. `[env]` is created
@@ -85,7 +100,8 @@ as it is.
 `Host()` is this machine. `Host("me@login.hpc")` runs every command through the system's
 `ssh` with `BatchMode=yes`: users, keys and jumps come from `~/.ssh/config`, the key
 logs in or the command fails at once, no credential is handled and nothing is left
-listening on the other side. A host is a POSIX machine; only Linux is supported.
+listening on the other side. A remote host is a POSIX machine: every command there runs through `sh`. This
+machine needs no `sh`: what ms_env does here it does in Python, Windows included.
 
 ## The environment of an app
 
