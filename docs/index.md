@@ -13,7 +13,7 @@ A **recipe** says how to tell that a tool works and how to install it. A
 pip install ms_env
 ```
 
-The package requires Python 3.12 or newer. A host is a POSIX machine; only Linux is supported.
+The package requires Python 3.12 or newer. This machine may be Linux, macOS or Windows; a remote host is a POSIX machine.
 
 ## First use
 

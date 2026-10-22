@@ -251,3 +251,77 @@ def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     again = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
                              cache=tmp_path)
     assert again.stamp == recipe.stamp and app._checkout("pytest") is None
+
+
+def _download_spec(tmp_path: Path, builds: dict[str, Path], to: str = "{prefix}/faketool") -> tools.ToolSpec:
+    """A tool that is one downloaded file per platform; `file://` URLs stand for the release."""
+    import hashlib
+
+    table = "".join(
+        f'download{"." * bool(where)}{where} = {{ url = "{path.as_uri()}", sha256 = "{hashlib.sha256(path.read_bytes()).hexdigest()}" }}\n'
+        for where, path in builds.items()
+    )
+    path = tmp_path / "download.toml"
+    path.write_text(
+        '[tool]\nname = "faketool"\nversion = "1.0"\n[locate]\npaths = ["{prefix}/faketool"]\ncheck = ["{exe}"]\n'
+        f'[[install]]\nname = "download faketool"\nto = "{to}"\n{table}'
+    )
+    return tools.ToolSpec.load(path)
+
+
+def test_a_download_is_picked_per_platform_checked_and_installed(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    build = _fake_exe(tmp_path / "release/faketool_linux")
+    spec = _download_spec(tmp_path, {"linux-64": build, "win-64": tmp_path / "release/faketool_linux"})
+    home = str(tmp_path / "home")
+    assert spec.recipe(home, platform="osx-arm64").unsupported == "faketool has no build for osx-arm64"
+    with pytest.raises(tools.StepFailed, match="no build for osx-arm64"):
+        tools.recipe_steps(spec.recipe(home, platform="osx-arm64"))
+
+    recipe = spec.recipe(home, platform="linux-64")
+    assert recipe.steps[0].url == build.as_uri() and recipe.steps[0].to == f"{recipe.prefix}/faketool"
+    tools.ensure(recipe).future.result(timeout=30)
+    assert tools.locate(recipe) == (tools.READY, f"{recipe.prefix}/faketool")  # saved under `to`, executable
+
+    build.write_text("#!/bin/sh\nexit 0\n# another build under the same name\n")
+    tampered = spec.recipe(str(tmp_path / "other"), platform="linux-64")
+    error = tools.ensure(dataclasses.replace(tampered, steps=recipe.steps, prefix=tampered.prefix)).future
+    assert "is not the file the recipe names" in str(error.exception(timeout=30))
+    with pytest.raises(ValueError, match="no sha256"):
+        (tmp_path / "bad.toml").write_text(
+            '[tool]\nname = "x"\n[locate]\n[[install]]\nname = "d"\ndownload = { url = "https://x" }\n')
+        tools.ToolSpec.load(tmp_path / "bad.toml")
+
+
+def test_an_archive_is_unpacked_and_a_remote_host_gets_the_download_sent(tmp_path, monkeypatch):
+    import tarfile
+    import zipfile
+
+    archive = tmp_path / "release/faketool.zip"
+    archive.parent.mkdir()
+    with zipfile.ZipFile(archive, "w") as packed:
+        packed.writestr("index.html", "<html/>")
+    recipe = _download_spec(tmp_path, {"": archive}, to="{prefix}").recipe(str(tmp_path / "home"))
+    run_step(tools.recipe_steps(recipe)[1])
+    assert Path(recipe.prefix, "index.html").read_text() == "<html/>"
+
+    sent: list[tuple[str, bytes]] = []
+    monkeypatch.setattr(Host, "run", lambda self, command, data=b"", timeout=0: sent.append((command, data)) or b"")
+    far = _download_spec(tmp_path, {"": _fake_exe(tmp_path / "release/faketool")}).recipe("/far/tools")
+    run_step(tools.recipe_steps(far, Host("login.hpc"))[1])
+    (command, data), = sent
+    assert command == "mkdir -p /far/tools/faketool/1.0 && tar -x -C /far/tools/faketool/1.0"
+    with tarfile.open(fileobj=__import__("io").BytesIO(data)) as tar:
+        assert [(entry.name, entry.mode) for entry in tar] == [("faketool", 0o755)]
+
+
+def test_windows_layout_and_platform_names():
+    spec = tools.ToolSpec(name="t", version="1", info={}, prefix="{tools_home}/t", paths=("{bin}/t",), commands=(),
+                          check=(), pip=("p",))
+    win = spec.recipe("C:\\Users\\me\\tools\\", platform="win-64")
+    assert win.prefix == "C:\\Users\\me\\tools/t" and win.candidates == (f"{win.prefix}/Library/bin/t",)
+    assert win.steps[1].argv[0] == f"{win.prefix}/python.exe"
+    assert spec.recipe("/h", platform="linux-64").candidates == ("/h/t/bin/t",)
+    assert tools.conda_platform("Windows", "AMD64") == "win-64"
+    assert tools.conda_platform("Darwin", "arm64") == "osx-arm64"
+    assert tools.conda_platform("Linux", "x86_64") == "linux-64" == Host().platform() or sys.platform != "linux"

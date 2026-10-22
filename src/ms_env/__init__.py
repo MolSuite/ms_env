@@ -21,7 +21,7 @@ from ms_env.recipes import (
     verify,
 )
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step, run_steps
-from ms_env.host import LOCAL, Host, HostError
+from ms_env.host import LOCAL, Host, HostError, conda_platform
 
 __all__ = [
     "Install",
@@ -37,6 +37,7 @@ __all__ = [
     "HostError",
     "ToolSpec",
     "UNREACHABLE",
+    "conda_platform",
     "app_recipe",
     "ensure",
     "find_environment_manager",

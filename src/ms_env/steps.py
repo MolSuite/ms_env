@@ -21,17 +21,22 @@ class StepFailed(RuntimeError):
 
 @dataclass(slots=True)
 class Step:
-    """One named unit of work: either a command line or an in-process call."""
+    """One named unit of work: a command line, or an in-process call. `run` is a call that
+    prints as it goes: it gets the function each line goes to."""
 
     name: str
     argv: Optional[list[str]] = None
     call: Optional[Callable[[], str]] = None
     timeout: float = DEFAULT_TIMEOUT
+    run: Optional[Callable[[Callable[[str], None]], None]] = None
 
 
 def run_step(step: Step, on_line: Callable[[str], None] | None = None) -> None:
     """Run one step, streaming its output. Raises StepFailed on failure."""
     emit = on_line or (lambda _line: None)
+    if step.run is not None:
+        step.run(emit)
+        return
     if step.call is not None:
         message = step.call()
         if message:
@@ -46,6 +51,8 @@ def run_step(step: Step, on_line: Callable[[str], None] | None = None) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",  # not the locale's: cp1252 on Windows
+            errors="replace",
             bufsize=1,
         )
     except FileNotFoundError as exc:
