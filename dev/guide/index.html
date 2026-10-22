@@ -26,7 +26,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.70">
+      <meta name="generator" content="zensical-0.0.71">
     
     
       
@@ -639,9 +639,9 @@ is optional.</p>
 <span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"{tools_home}/{name}/{version}"</span><span class="w">  </span><span class="c1"># the default</span>
 
 <span class="k">[locate]</span>
-<span class="n">paths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{prefix}/bin/obabel"</span><span class="p">]</span><span class="w">           </span><span class="c1"># where the install puts it</span>
+<span class="n">paths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{bin}/obabel"</span><span class="p">]</span><span class="w">                  </span><span class="c1"># where the install puts it; +".exe" on Windows</span>
 <span class="n">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"obabel"</span><span class="p">]</span><span class="w">                     </span><span class="c1"># looked up on PATH</span>
-<span class="n">check</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{exe}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-V"</span><span class="p">]</span><span class="w">                   </span><span class="c1"># {exe} = the candidate</span>
+<span class="n">check</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{exe}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-V"</span><span class="p">]</span><span class="w">                   </span><span class="c1"># {exe} = the candidate; none: being there is enough</span>
 
 <span class="k">[env]</span><span class="w">                                     </span><span class="c1"># a conda prefix at {prefix}</span>
 <span class="n">conda</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"openbabel={version}"</span><span class="p">]</span>
@@ -649,10 +649,24 @@ is optional.</p>
 <span class="n">channels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"conda-forge"</span><span class="p">]</span><span class="w">                </span><span class="c1"># the default</span>
 
 <span class="k">[[install]]</span><span class="w">                               </span><span class="c1"># plain steps, after [env]</span>
-<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"download the model"</span>
-<span class="n">argv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"curl"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-fsSL"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-o"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{prefix}/model.pt"</span><span class="p">,</span><span class="w"> </span><span class="s2">"https://..."</span><span class="p">]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"fetch the weights"</span>
+<span class="n">argv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{python}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-m"</span><span class="p">,</span><span class="w"> </span><span class="s2">"tool.fetch"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{prefix}/weights"</span><span class="p">]</span>
 <span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1800</span>
+
+<span class="k">[[install]]</span><span class="w">                               </span><span class="c1"># a download, checked, per platform</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"download the binary"</span>
+<span class="n">to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"{prefix}/tool"</span><span class="w">                      </span><span class="c1"># an archive is unpacked into `to`; a file keeps ".exe"</span>
+<span class="n">download</span><span class="p">.</span><span class="n">linux-64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"https://.../tool_linux"</span><span class="p">,</span><span class="w"> </span><span class="n">sha256</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span>
+<span class="n">download</span><span class="p">.</span><span class="n">win-64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"https://.../tool.exe"</span><span class="p">,</span><span class="w"> </span><span class="n">sha256</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span>
+<span class="c1"># the same file everywhere: download = { url = "...", sha256 = "..." }</span>
 </code></pre></div>
+<p><code>{bin}</code> and <code>{python}</code> are where a conda environment keeps them: <code>{prefix}/bin</code> and
+<code>{prefix}/bin/python</code>, or <code>{prefix}/Library/bin</code> and <code>{prefix}/python.exe</code> on Windows.
+Platforms are named as conda names them (<code>linux-64</code>, <code>linux-aarch64</code>, <code>osx-64</code>,
+<code>osx-arm64</code>, <code>win-64</code>; <code>Host.platform()</code> says the host's). A download needs its sha256.
+On a platform none of its downloads names, the tool has no build: <code>recipe.unsupported</code>
+says so and <code>ensure</code> fails with it. A remote host gets a download made and checked here,
+then sent over <code>ssh</code>: it needs no <code>curl</code>.</p>
 <p><code>ToolSpec.load(path)</code> reads the file, and <code>spec.recipe(tools_home)</code> binds its
 templates to one host. <code>tools_home</code> is a path on that host.</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolSpec</span>
@@ -680,6 +694,10 @@ templates to one host. <code>tools_home</code> is a path on that host.</p>
 <tr>
 <td><code>manager=</code></td>
 <td>A conda-type program to use on the host in place of micromamba</td>
+</tr>
+<tr>
+<td><code>platform=</code></td>
+<td>The host's platform (<code>Host.platform()</code>); this machine's by default</td>
 </tr>
 </tbody>
 </table>
