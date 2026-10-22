@@ -1,0 +1,950 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Environments for MolSuite apps: find or install external tools, on this machine or over ssh.">
+      
+      
+        <meta name="author" content="MolSuite authors">
+      
+      
+        <link rel="canonical" href="https://molsuite.github.io/ms_env/latest/guide/">
+      
+      
+      
+        <link rel="prev" href="./..">
+      
+      
+        <link rel="next" href="../api_reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.71">
+    
+    
+      
+        <title>Guide - ms_env</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.e442bf79.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="ms_env" class="md-header__button md-logo" aria-label="ms_env" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            ms_env
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/MolSuite/ms_env" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    MolSuite/ms_env
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="ms_env" class="md-nav__button md-logo" aria-label="ms_env" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    ms_env
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/MolSuite/ms_env" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    MolSuite/ms_env
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guide
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guide
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A recipe
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A recipe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#finding-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Finding a tool
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Installing a tool
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whose-an-environment-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Whose an environment is
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Whose an environment is">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#while-something-runs-from-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        While something runs from it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A host
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-environment-of-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The environment of an app
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-environment-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The environment manager
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API reference
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#a-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A recipe
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="A recipe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#finding-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Finding a tool
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-a-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Installing a tool
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#whose-an-environment-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Whose an environment is
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Whose an environment is">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#while-something-runs-from-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        While something runs from it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A host
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-environment-of-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The environment of an app
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-environment-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The environment manager
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+  
+
+
+<h1 id="guide">Guide<a class="headerlink" href="#guide" title="Permanent link">&para;</a></h1>
+<h2 id="a-recipe">A recipe<a class="headerlink" href="#a-recipe" title="Permanent link">&para;</a></h2>
+<p>An app ships one TOML file per tool. Every section but <code>[tool]</code> and <code>[locate]</code>
+is optional.</p>
+<div class="highlight"><pre><span></span><code><span class="k">[tool]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"openbabel"</span>
+<span class="n">label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"OpenBabel"</span>
+<span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"3.1.1"</span><span class="w">                         </span><span class="c1"># pinned here; never a user option</span>
+<span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"{tools_home}/{name}/{version}"</span><span class="w">  </span><span class="c1"># the default</span>
+
+<span class="k">[locate]</span>
+<span class="n">paths</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{bin}/obabel"</span><span class="p">]</span><span class="w">                  </span><span class="c1"># where the install puts it; +".exe" on Windows</span>
+<span class="n">commands</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"obabel"</span><span class="p">]</span><span class="w">                     </span><span class="c1"># looked up on PATH</span>
+<span class="n">check</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{exe}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-V"</span><span class="p">]</span><span class="w">                   </span><span class="c1"># {exe} = the candidate; none: being there is enough</span>
+
+<span class="k">[env]</span><span class="w">                                     </span><span class="c1"># a conda prefix at {prefix}</span>
+<span class="n">conda</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"openbabel={version}"</span><span class="p">]</span>
+<span class="n">pip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="n">channels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"conda-forge"</span><span class="p">]</span><span class="w">                </span><span class="c1"># the default</span>
+
+<span class="k">[[install]]</span><span class="w">                               </span><span class="c1"># plain steps, after [env]</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"fetch the weights"</span>
+<span class="n">argv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"{python}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"-m"</span><span class="p">,</span><span class="w"> </span><span class="s2">"tool.fetch"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{prefix}/weights"</span><span class="p">]</span>
+<span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1800</span>
+
+<span class="k">[[install]]</span><span class="w">                               </span><span class="c1"># a download, checked, per platform</span>
+<span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"download the binary"</span>
+<span class="n">to</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"{prefix}/tool"</span><span class="w">                      </span><span class="c1"># an archive is unpacked into `to`; a file keeps ".exe"</span>
+<span class="n">download</span><span class="p">.</span><span class="n">linux-64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"https://.../tool_linux"</span><span class="p">,</span><span class="w"> </span><span class="n">sha256</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span>
+<span class="n">download</span><span class="p">.</span><span class="n">win-64</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">url</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"https://.../tool.exe"</span><span class="p">,</span><span class="w"> </span><span class="n">sha256</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="s2">"..."</span><span class="w"> </span><span class="p">}</span>
+<span class="c1"># the same file everywhere: download = { url = "...", sha256 = "..." }</span>
+</code></pre></div>
+<p><code>{bin}</code> and <code>{python}</code> are where a conda environment keeps them: <code>{prefix}/bin</code> and
+<code>{prefix}/bin/python</code>, or <code>{prefix}/Library/bin</code> and <code>{prefix}/python.exe</code> on Windows.
+Platforms are named as conda names them (<code>linux-64</code>, <code>linux-aarch64</code>, <code>osx-64</code>,
+<code>osx-arm64</code>, <code>win-64</code>; <code>Host.platform()</code> says the host's). A download needs its sha256.
+On a platform none of its downloads names, the tool has no build: <code>recipe.unsupported</code>
+says so and <code>ensure</code> fails with it. A remote host gets a download made and checked here,
+then sent over <code>ssh</code>: it needs no <code>curl</code>.</p>
+<p><code>ToolSpec.load(path)</code> reads the file, and <code>spec.recipe(tools_home)</code> binds its
+templates to one host. <code>tools_home</code> is a path on that host.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolSpec</span>
+
+<span class="n">spec</span> <span class="o">=</span> <span class="n">ToolSpec</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"openbabel.toml"</span><span class="p">)</span>
+<span class="n">recipe</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">recipe</span><span class="p">(</span><span class="s2">"/home/me/.myapp/tools"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>recipe()</code> takes three more choices of the user:</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prefix=</code></td>
+<td>A location in place of the managed one: an environment of their own, or a place to install into</td>
+</tr>
+<tr>
+<td><code>extra_paths=</code></td>
+<td>Executables the user registered, tried before anything else</td>
+</tr>
+<tr>
+<td><code>manager=</code></td>
+<td>A conda-type program to use on the host in place of micromamba</td>
+</tr>
+<tr>
+<td><code>platform=</code></td>
+<td>The host's platform (<code>Host.platform()</code>); this machine's by default</td>
+</tr>
+</tbody>
+</table>
+<h3 id="finding-a-tool">Finding a tool<a class="headerlink" href="#finding-a-tool" title="Permanent link">&para;</a></h3>
+<p><code>locate(recipe, host)</code> returns <code>(READY, executable)</code>, or <code>(MISSING, "")</code>, or
+<code>(UNREACHABLE, "")</code> when <code>ssh</code> could not connect. <code>status</code> returns the state
+alone. The first candidate whose check exits 0 wins, in this order:</p>
+<ol>
+<li>The paths the user registered.</li>
+<li>The managed install under <code>tools_home</code>.</li>
+<li>The commands on <code>PATH</code>.</li>
+</ol>
+<p>Both calls block on a subprocess, so keep them off UI threads.</p>
+<h3 id="installing-a-tool">Installing a tool<a class="headerlink" href="#installing-a-tool" title="Permanent link">&para;</a></h3>
+<p><code>ensure(recipe, host)</code> returns an <code>Install</code> at once and installs on a daemon
+thread. Nothing is installed where the tool is already usable.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure</span>
+
+<span class="n">install</span> <span class="o">=</span> <span class="n">ensure</span><span class="p">(</span><span class="n">recipe</span><span class="p">)</span>
+<span class="n">install</span><span class="o">.</span><span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>     <span class="c1"># waits; raises when the install failed</span>
+<span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">install</span><span class="o">.</span><span class="n">lines</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><code>install.lines</code> is the live log, and its last line is the error when there is one.</li>
+<li>A second <code>ensure</code> of the same tool on the same host joins the install that is running.</li>
+<li><code>[env]</code> is created with micromamba: the one on the host's <code>PATH</code>, or one
+  downloaded into <code>tools_home</code>.</li>
+</ul>
+<p>An app that shows the steps itself takes them from <code>recipe_steps(recipe, host)</code>
+and runs them with <code>run_steps(steps, on_line, on_step)</code>.</p>
+<h2 id="whose-an-environment-is">Whose an environment is<a class="headerlink" href="#whose-an-environment-is" title="Permanent link">&para;</a></h2>
+<p><code>ensure</code> stamps the prefix it installs. The stamp decides what may happen to it:</p>
+<table>
+<thead>
+<tr>
+<th>At the prefix</th>
+<th><code>ensure</code></th>
+<th><code>remove</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nothing</td>
+<td>Creates it</td>
+<td>Nothing to delete</td>
+</tr>
+<tr>
+<td>A stamp of this recipe</td>
+<td>Nothing</td>
+<td>Deletes it</td>
+</tr>
+<tr>
+<td>A stamp of another recipe (the TOML changed)</td>
+<td>Creates it again: the update</td>
+<td>Deletes it</td>
+</tr>
+<tr>
+<td>Something without a stamp: the user's own environment</td>
+<td>Verifies it, never changes it</td>
+<td>Leaves it</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">remove</span><span class="p">,</span> <span class="n">verify</span>
+
+<span class="n">mine</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">recipe</span><span class="p">(</span><span class="s2">"/home/me/.myapp/tools"</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="s2">"/home/me/envs/babel"</span><span class="p">)</span>   <span class="c1"># an environment I already have</span>
+<span class="n">verify</span><span class="p">(</span><span class="n">mine</span><span class="p">)</span>    <span class="c1"># [] when it meets the recipe, else what it lacks:</span>
+                <span class="c1"># ["conda: openbabel=3.1.1 is asked for and is not there"]</span>
+<span class="n">remove</span><span class="p">(</span><span class="n">recipe</span><span class="p">)</span>  <span class="c1"># True: ms_env had installed it and it is gone</span>
+</code></pre></div>
+<p><code>verify</code> looks up every pinned conda package, every pinned pip package and the
+recipe's check, and only reads. An executable registered on its own
+(<code>extra_paths=</code>) is not an environment: it only has to pass the check.</p>
+<h3 id="while-something-runs-from-it">While something runs from it<a class="headerlink" href="#while-something-runs-from-it" title="Permanent link">&para;</a></h3>
+<p>An update replaces an install, so an app can refuse it while the install is in
+use. <code>ensure</code> takes <code>busy=</code>, a function that returns why the install cannot be
+changed now, or an empty string.</p>
+<div class="highlight"><pre><span></span><code><span class="n">ensure</span><span class="p">(</span><span class="n">recipe</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">busy</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="s2">"2 jobs are running from it"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>busy</code> is asked only before an install of <code>ms_env</code> is changed. When it returns
+a reason the install fails saying so and the prefix is left as it is. A prefix
+that is missing, or already as the recipe asks, never asks.</p>
+<h2 id="a-host">A host<a class="headerlink" href="#a-host" title="Permanent link">&para;</a></h2>
+<p><code>Host()</code> is this machine. <code>Host("me@login.hpc")</code> runs every command through the
+system's <code>ssh</code> with <code>BatchMode=yes</code>:</p>
+<ul>
+<li>Users, keys and jumps come from <code>~/.ssh/config</code>.</li>
+<li>The key logs in or the command fails at once; no credential is handled.</li>
+<li>Nothing is left listening on the other side.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">Host</span>
+
+<span class="n">host</span> <span class="o">=</span> <span class="n">Host</span><span class="p">(</span><span class="s2">"me@login.hpc"</span><span class="p">)</span>
+<span class="n">home</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>                  <span class="c1"># the home of the account there</span>
+<span class="n">host</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"nproc"</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>          <span class="c1"># what the command printed; HostError when it fails</span>
+</code></pre></div>
+<p>A failed login says what to do: <code>ssh-copy-id</code> when the key is not accepted, a
+first login by hand when the host key is not known yet.</p>
+<h2 id="the-environment-of-an-app">The environment of an app<a class="headerlink" href="#the-environment-of-an-app" title="Permanent link">&para;</a></h2>
+<p><code>app_recipe</code> makes the recipe that gives a host the environment an app runs in
+here: the same Python and the same versions of what this one has installed.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">Host</span><span class="p">,</span> <span class="n">app_recipe</span><span class="p">,</span> <span class="n">ensure</span>
+
+<span class="n">host</span> <span class="o">=</span> <span class="n">Host</span><span class="p">(</span><span class="s2">"me@login.hpc"</span><span class="p">)</span>
+<span class="n">home</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>
+<span class="n">recipe</span> <span class="o">=</span> <span class="n">app_recipe</span><span class="p">(</span>
+    <span class="s2">"myapp"</span><span class="p">,</span>
+    <span class="p">[</span><span class="s2">"myapp"</span><span class="p">,</span> <span class="s2">"ms_flow"</span><span class="p">],</span>                     <span class="c1"># packages: `name` or `name[extras]`</span>
+    <span class="p">[</span><span class="s2">"myapp"</span><span class="p">,</span> <span class="s2">"ms_flow"</span><span class="p">],</span>                     <span class="c1"># modules that have to import there</span>
+    <span class="n">prefix</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">home</span><span class="si">}</span><span class="s2">/.myapp/env"</span><span class="p">,</span>              <span class="c1"># on the host</span>
+    <span class="n">tools_home</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">home</span><span class="si">}</span><span class="s2">/.myapp/tools"</span><span class="p">,</span>        <span class="c1"># on the host</span>
+    <span class="n">cache</span><span class="o">=</span><span class="s2">"/home/me/.myapp/cache/wheels"</span><span class="p">,</span>     <span class="c1"># on this machine</span>
+<span class="p">)</span>
+<span class="n">ensure</span><span class="p">(</span><span class="n">recipe</span><span class="p">,</span> <span class="n">host</span><span class="p">)</span><span class="o">.</span><span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</code></pre></div>
+<p>What travels and what is downloaded:</p>
+<ul>
+<li>A package imported from a source checkout goes as a wheel of its code as it
+  is now. The wheel is built once for each state of the code.</li>
+<li>A package that is installed here is asked for in the version it has.</li>
+<li>Everything else the host downloads, pinned to the versions of this
+  environment, so the two machines may be different systems.</li>
+<li>When an index lacks a version that conda installed here, the install tries
+  again pinning only what pip installed.</li>
+</ul>
+<p>The environment is updated where it stands for as long as the Python version
+is the same; a new Python makes it again. <code>app_recipe</code> builds wheels the first
+time and after the code changes, so keep it off UI threads.</p>
+<h2 id="the-environment-manager">The environment manager<a class="headerlink" href="#the-environment-manager" title="Permanent link">&para;</a></h2>
+<p><code>find_environment_manager()</code> returns the program that creates environments on
+this machine, or <code>None</code> when a recipe has to download its own micromamba.</p>
+<ol>
+<li>The variables the app names, in the order given.</li>
+<li><code>MOLSUITE_ENV_MANAGER</code>.</li>
+<li><code>micromamba</code> on <code>PATH</code>.</li>
+</ol>
+<p>Any of the variables may name a conda or a mamba.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="./.." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Home
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../api_reference/" class="md-footer__link md-footer__link--next" aria-label="Next: API reference">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                API reference
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 MolSuite authors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["content.code.copy","navigation.footer","navigation.path","navigation.sections","navigation.top","search.highlight","search.suggest"],"redirect":null,"search":"../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"provider":"mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a2388154.min.js"></script>
+      
+    
+  </body>
+</html>
