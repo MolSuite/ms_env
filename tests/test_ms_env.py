@@ -1,6 +1,7 @@
 """Tool recipes: TOML binding, lookup order, env bootstrap script, project-less installs, whose a prefix is."""
 from __future__ import annotations
 
+import subprocess
 import dataclasses
 import json
 import sys
@@ -325,3 +326,21 @@ def test_windows_layout_and_platform_names():
     assert tools.conda_platform("Windows", "AMD64") == "win-64"
     assert tools.conda_platform("Darwin", "arm64") == "osx-arm64"
     assert tools.conda_platform("Linux", "x86_64") == "linux-64" == Host().platform() or sys.platform != "linux"
+
+
+def test_a_checkout_learns_the_tags_made_on_its_server_before_its_wheel_is_built(tmp_path):
+    from ms_env import app
+
+    def git(where, *words):
+        subprocess.run(["git", "-C", str(where), "-c", "user.name=t", "-c", "user.email=t@t", *words],
+                       check=True, capture_output=True)
+
+    server, here = tmp_path / "server", tmp_path / "here"
+    server.mkdir()
+    git(server, "init", "-q")
+    git(server, "commit", "-q", "--allow-empty", "-m", "one")
+    git(server, "tag", "v0.1.0")
+    git(server, "commit", "-q", "--allow-empty", "-m", "two")
+    subprocess.run(["git", "clone", "-q", str(server), str(here)], check=True)
+    git(server, "tag", "v0.2.0")  # a release made on the server once the checkout was there
+    assert app._described(here).startswith("v0.2.0-0-g") and app._described(tmp_path) == ""
