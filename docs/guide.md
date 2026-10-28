@@ -177,7 +177,11 @@ ensure(recipe, host).future.result()
 What travels and what is downloaded:
 
 - A package imported from a source checkout goes as a wheel of its code as it
-  is now. The wheel is built once for each state of the code.
+  is now. The wheel is built once for each state of the code and of its tags:
+  its version comes from the last tag, so the tags of a git checkout are
+  fetched first. A release tagged on the server would otherwise give the wheel
+  a development version below it, which the host refuses to install for an app
+  that asks for that release.
 - A package that is installed here is asked for in the version it has.
 - Everything else the host downloads, pinned to the versions of this
   environment, so the two machines may be different systems.
