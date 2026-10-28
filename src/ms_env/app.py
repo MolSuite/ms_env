@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import os
 import platform
 import re
 import shutil
@@ -36,17 +35,11 @@ def _checkout(module: str) -> Path | None:
 
 
 def _described(root: Path) -> str:
-    """`git describe` of the checkout at `root`, after fetching its tags: the version of the wheel
-    comes from the last tag, and one made on the server (a release) is not here until then; a
-    wheel built without it has a version below the one it is, and pip there refuses it.
-    Offline or without git, the tags that are here."""
+    """`git describe` of the checkout at `root`: the version of its wheel comes from the last tag,
+    which may change while the code does not. Without git, nothing."""
     if not (root / ".git").exists():
         return ""
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
     try:
-        subprocess.run(["git", "-C", str(root), "fetch", "--tags", "--quiet"],
-                       env=env, capture_output=True, timeout=30, check=False)
         return subprocess.run(["git", "-C", str(root), "describe", "--tags", "--long", "--always"],
                               capture_output=True, text=True, timeout=30, check=False).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
