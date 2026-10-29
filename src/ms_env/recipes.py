@@ -671,10 +671,15 @@ class Install:
     key: str
     future: Future = field(default_factory=Future)
     lines: list[str] = field(default_factory=list)  # live log, appended from the install thread
+    # Steps done of all it takes: the check, and then each step of an install when one is needed.
+    done: int = 0
+    total: int = 1
+    step: str = ""  # the name of the step it is running, while it runs one
 
 
 _INSTALLS: dict[str, Install] = {}
 _LOCK = threading.Lock()
+_CHANGING: dict[str, threading.Lock] = {}  # by host: the checks run side by side, the installs one at a time
 
 
 def ensure(recipe: Recipe, host: Host = LOCAL, busy: Callable[[], str] | None = None) -> Install:
@@ -718,8 +723,17 @@ def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[]
             why = busy() if busy and owner.startswith("{") else ""  # a stamp: an install of ours that ended
             if why:
                 raise StepFailed(f"{recipe.name} on {where} is not as this recipe asks, and is left as it is: {why}")
-            for step in recipe_steps(recipe, host, refresh=bool(recipe.base) and _base(owner) == recipe.base):
-                run_step(step, install.lines.append)
+            steps = recipe_steps(recipe, host, refresh=bool(recipe.base) and _base(owner) == recipe.base)
+            install.done, install.total = 1, 1 + len(steps)
+            with _LOCK:
+                changing = _CHANGING.setdefault(host.address or "", threading.Lock())
+            # ponytail: one install at a time on a host (they share its micromamba and its package cache)
+            with changing:
+                for step in steps:
+                    install.step = step.name
+                    run_step(step, install.lines.append)
+                    install.done += 1
+                install.step = ""
             state = status(recipe, host)
             if state != READY:
                 raise StepFailed(f"{recipe.name}: every step ran but the tool is still {state} on {where}.")
@@ -727,6 +741,7 @@ def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[]
         install.lines.append(str(exc))
         install.future.set_exception(exc)
     else:
+        install.done = install.total
         install.future.set_result(None)
 
 

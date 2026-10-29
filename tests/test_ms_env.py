@@ -59,7 +59,7 @@ def test_spec_binds_per_host(tmp_path):
     assert [step.name.removeprefix("mario@login.hpc: ") for step in steps] == [
         "prepare /opt/mine", "create the faketool environment", "pip install into faketool", "record the faketool install",
     ]
-    assert steps[1].argv[:4] == ["ssh", "-o", "BatchMode=yes", "mario@login.hpc"]
+    assert steps[1].argv[:3] + [steps[1].argv[-2]] == ["ssh", "-o", "BatchMode=yes", "mario@login.hpc"]
     assert "/scratch/tools/micromamba" in steps[1].argv[-1]  # bootstrap lands under the remote home
     assert steps[2].argv[-1].endswith("'extra pkg'")  # one quoted remote command line
     assert remote.stamp == local.stamp  # what the TOML asks for, wherever it is applied
@@ -132,6 +132,32 @@ def test_install_needs_no_project(tmp_path, monkeypatch):
     assert "boom detail" in broken.lines
 
 
+def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeypatch):
+    import time
+
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    recipes = []
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        recipes.append(dataclasses.replace(_plain_spec(tmp_path / name, slow=True), name=f"faketool-{name}"))
+    start = time.monotonic()
+    installs = [tools.ensure(recipe) for recipe in recipes]
+    running = set()
+    while not all(install.future.done() for install in installs):
+        running.update(install.step for install in installs)
+        time.sleep(0.05)
+    for install in installs:
+        install.future.result(timeout=30)
+    assert "wait" in running, running
+    assert all(install.step == "" for install in installs)  # named while it runs, not after
+    assert time.monotonic() - start >= 2  # one `sleep 1` after the other: they share the host's micromamba
+    # the check, "prepare", the two steps of the recipe, the stamp
+    assert [(install.done, install.total) for install in installs] == [(5, 5), (5, 5)]
+    again = tools.ensure(recipes[0])
+    again.future.result(timeout=30)
+    assert (again.done, again.total) == (1, 1)  # only the check: nothing to install
+
+
 def test_ms_env_updates_and_removes_what_it_installed(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
     recipe = _plain_spec(tmp_path)
@@ -188,7 +214,8 @@ def test_the_environment_of_the_user_is_verified_and_never_changed(tmp_path, mon
 
 def test_a_host_runs_commands_and_says_why_one_failed():
     assert Host().run("cat; echo there", b"here ") == b"here there\n"
-    assert Host("login.hpc").argv("ls") == ["ssh", "-o", "BatchMode=yes", "login.hpc", "ls"]
+    argv = Host("login.hpc").argv("ls")
+    assert argv[:3] + argv[-2:] == ["ssh", "-o", "BatchMode=yes", "login.hpc", "ls"]
     with pytest.raises(tools.HostError, match="this machine: no such thing"):
         Host().run("echo no such thing >&2; exit 3")
 

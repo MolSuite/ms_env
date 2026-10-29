@@ -2,9 +2,12 @@
 
 No credential is handled here. `ssh` runs with `BatchMode=yes`: the keys and the agent of the
 account log in or the command fails at once, and nothing is left listening on the other side.
+Where `ssh` can (not Windows' OpenSSH), the commands to one host share one connection, kept a
+minute after the last one: a check is then a few milliseconds instead of a new login.
 """
 from __future__ import annotations
 
+import os
 import platform as _platform
 import subprocess
 from pathlib import Path
@@ -23,6 +26,11 @@ def conda_platform(system: str, machine: str) -> str:
     return _PLATFORMS.get((system, machine), f"{system}-{machine}")
 
 
+# The shared connection's socket goes in ~/.ssh; ssh refuses to run when it cannot make it there.
+_SHARED = () if os.name == "nt" else (
+    "-o", "ControlMaster=auto", "-o", "ControlPersist=60", "-o", "ControlPath=~/.ssh/ms_env-%C")
+
+
 class HostError(RuntimeError):
     pass
 
@@ -31,8 +39,10 @@ class Host:
     """A machine, known by what running a command on it gives back: `address` as `ssh` knows it (its
     keys, users and jumps are in `~/.ssh/config`), or None for this one."""
 
-    def __init__(self, address: str | None = None, ssh=("ssh", "-o", "BatchMode=yes")):
+    def __init__(self, address: str | None = None, ssh=("ssh", "-o", "BatchMode=yes", *_SHARED)):
         self.address, self.ssh = address or None, tuple(ssh)
+        if self.address and _SHARED and _SHARED[-1] in self.ssh:
+            (Path.home() / ".ssh").mkdir(mode=0o700, exist_ok=True)
 
     def __repr__(self) -> str:
         return f"Host({self.address!r})"

@@ -71,23 +71,29 @@ def _wheel(root: Path, tag: str, cache: Path) -> Path:
     return next(out.glob("*.whl"))
 
 
-def _constraints(everything: bool) -> str:
-    """`name==version` of what this environment holds: all of it, or what pip took from an index.
+def _constraints() -> tuple[str, str]:
+    """`name==version` of what this environment holds: all of it, and what pip took from an index.
 
     A local build is never pinned (no index has it), nor a name this environment has two
-    records of (which one runs is anyone's guess). What conda put here is pinned only when
-    `everything`: an index may lack that version, which is why the install has a second try.
+    records of (which one runs is anyone's guess). What conda put here is pinned only in the
+    first: an index may lack that version, which is why the install has a second try.
     """
-    seen: dict[str, set[str]] = {}
-    for dist in metadata.distributions():
+    seen: dict[str, set[tuple[str, bool]]] = {}
+    for dist in metadata.distributions():  # one pass: reading every record is most of what this costs
         name, installer = dist.metadata.get("Name"), (dist.read_text("INSTALLER") or "").strip()
         if not name:  # a broken leftover in site-packages
             continue
         local = "+" in dist.version or (installer != "conda" and dist.read_text("direct_url.json"))
-        pin = not local and (everything or installer in ("pip", "uv"))
-        seen.setdefault(re.sub(r"[-_.]+", "-", name).lower(), set()).add(dist.version if pin else "")
-    pins = (f"{name}=={next(iter(versions))}" for name, versions in seen.items() if len(versions) == 1)
-    return "\n".join(sorted(pin for pin in pins if not pin.endswith("=="))) + "\n"
+        seen.setdefault(re.sub(r"[-_.]+", "-", name).lower(), set()).add(
+            ("" if local else dist.version, installer in ("pip", "uv")))
+
+    def pins(everything: bool) -> str:
+        versions = {name: {version if everything or by_pip else "" for version, by_pip in records}
+                    for name, records in seen.items()}
+        return "\n".join(sorted(f"{name}=={next(iter(found))}" for name, found in versions.items()
+                                if len(found) == 1 and next(iter(found)))) + "\n"
+
+    return pins(True), pins(False)
 
 
 def app_recipe(
@@ -125,8 +131,9 @@ def app_recipe(
         wanted.append(f"{code}/{wheels[-1].name}{extras or ''}")
     cache.mkdir(parents=True, exist_ok=True)
     constraints, loose = cache / "constraints.txt", cache / "constraints-pip.txt"
-    constraints.write_text(_constraints(True), encoding="utf-8")
-    loose.write_text(_constraints(False), encoding="utf-8")
+    everything, by_pip = _constraints()
+    constraints.write_text(everything, encoding="utf-8")
+    loose.write_text(by_pip, encoding="utf-8")
 
     pip = (f"{prefix}/bin/python", "-m", "pip", "install", "--progress-bar", "off")
     # ponytail: one version the index lacks drops every pin of what conda installed here, not

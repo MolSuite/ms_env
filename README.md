@@ -100,7 +100,8 @@ as it is.
 `Host()` is this machine. `Host("me@login.hpc")` runs every command through the system's
 `ssh` with `BatchMode=yes`: users, keys and jumps come from `~/.ssh/config`, the key
 logs in or the command fails at once, no credential is handled and nothing is left
-listening on the other side. A remote host is a POSIX machine: every command there runs through `sh`. This
+listening on the other side. Outside Windows the commands to one host share one connection
+(a socket in `~/.ssh`, closed a minute after the last command). A remote host is a POSIX machine: every command there runs through `sh`. This
 machine needs no `sh`: what ms_env does here it does in Python, Windows included.
 
 ## The environment of an app
