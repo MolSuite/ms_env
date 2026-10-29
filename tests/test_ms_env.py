@@ -142,8 +142,14 @@ def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeyp
         recipes.append(dataclasses.replace(_plain_spec(tmp_path / name, slow=True), name=f"faketool-{name}"))
     start = time.monotonic()
     installs = [tools.ensure(recipe) for recipe in recipes]
+    running = set()
+    while not all(install.future.done() for install in installs):
+        running.update(install.step for install in installs)
+        time.sleep(0.05)
     for install in installs:
         install.future.result(timeout=30)
+    assert "wait" in running, running
+    assert all(install.step == "" for install in installs)  # named while it runs, not after
     assert time.monotonic() - start >= 2  # one `sleep 1` after the other: they share the host's micromamba
     # the check, "prepare", the two steps of the recipe, the stamp
     assert [(install.done, install.total) for install in installs] == [(5, 5), (5, 5)]

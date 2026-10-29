@@ -674,6 +674,7 @@ class Install:
     # Steps done of all it takes: the check, and then each step of an install when one is needed.
     done: int = 0
     total: int = 1
+    step: str = ""  # the name of the step it is running, while it runs one
 
 
 _INSTALLS: dict[str, Install] = {}
@@ -729,8 +730,10 @@ def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[]
             # ponytail: one install at a time on a host (they share its micromamba and its package cache)
             with changing:
                 for step in steps:
+                    install.step = step.name
                     run_step(step, install.lines.append)
                     install.done += 1
+                install.step = ""
             state = status(recipe, host)
             if state != READY:
                 raise StepFailed(f"{recipe.name}: every step ran but the tool is still {state} on {where}.")
