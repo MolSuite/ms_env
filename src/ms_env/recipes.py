@@ -386,7 +386,8 @@ def _base(owner: str) -> str:
 
 
 def _executable(info: tarfile.TarInfo) -> tarfile.TarInfo:
-    return info.replace(mode=0o755)  # what Windows packs carries no mode; a download has to run there
+    # not deep: a deep copy takes the TarFile it points to along, with all it packed so far
+    return info.replace(mode=0o755, deep=False)  # what Windows packs carries no mode; a download has to run there
 
 
 def _tar(paths: Iterable[str]) -> bytes:

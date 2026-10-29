@@ -343,3 +343,21 @@ def test_a_new_tag_on_the_same_code_builds_a_new_wheel(tmp_path):
     git("tag", "v0.2.0")  # a release of the same code: its wheel has another version
     assert before.startswith("v0.1.0-1-g") and app._described(tmp_path).startswith("v0.2.0-0-g")
     assert app._described(tmp_path / "not-a-checkout") == ""
+
+
+def test_a_folder_of_many_files_is_sent_as_a_tar_of_its_size(tmp_path):
+    import resource
+    import tarfile
+    from io import BytesIO
+
+    from ms_env.recipes import _tar
+
+    for i in range(300):  # each file once took a deep copy of all packed before it: GBs by 100
+        (tmp_path / "pack" / f"sub{i % 10}").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "pack" / f"sub{i % 10}" / f"f{i}.js").write_bytes(b"x" * 20_000)
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    data = _tar([str(tmp_path / "pack")])
+    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 200 * 1024  # kB
+    with tarfile.open(fileobj=BytesIO(data)) as tar:
+        members = tar.getmembers()
+    assert len([m for m in members if m.isfile()]) == 300 and all(m.mode == 0o755 for m in members)
