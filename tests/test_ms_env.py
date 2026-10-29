@@ -132,6 +132,26 @@ def test_install_needs_no_project(tmp_path, monkeypatch):
     assert "boom detail" in broken.lines
 
 
+def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeypatch):
+    import time
+
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
+    recipes = []
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+        recipes.append(dataclasses.replace(_plain_spec(tmp_path / name, slow=True), name=f"faketool-{name}"))
+    start = time.monotonic()
+    installs = [tools.ensure(recipe) for recipe in recipes]
+    for install in installs:
+        install.future.result(timeout=30)
+    assert time.monotonic() - start >= 2  # one `sleep 1` after the other: they share the host's micromamba
+    # the check, "prepare", the two steps of the recipe, the stamp
+    assert [(install.done, install.total) for install in installs] == [(5, 5), (5, 5)]
+    again = tools.ensure(recipes[0])
+    again.future.result(timeout=30)
+    assert (again.done, again.total) == (1, 1)  # only the check: nothing to install
+
+
 def test_ms_env_updates_and_removes_what_it_installed(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
     recipe = _plain_spec(tmp_path)
