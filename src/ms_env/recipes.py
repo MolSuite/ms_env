@@ -74,7 +74,7 @@ from pathlib import Path, PurePath
 from typing import Any, Callable, Iterable
 
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step
-from ms_env.host import LOCAL, Host
+from ms_env.host import LOCAL, Host, HostError
 
 READY = "ready"
 MISSING = "missing"
@@ -386,7 +386,8 @@ def _base(owner: str) -> str:
 
 
 def _executable(info: tarfile.TarInfo) -> tarfile.TarInfo:
-    return info.replace(mode=0o755)  # what Windows packs carries no mode; a download has to run there
+    # not deep: a deep copy takes the TarFile it points to along, with all it packed so far
+    return info.replace(mode=0o755, deep=False)  # what Windows packs carries no mode; a download has to run there
 
 
 def _tar(paths: Iterable[str]) -> bytes:
@@ -397,8 +398,43 @@ def _tar(paths: Iterable[str]) -> bytes:
     return held.getvalue()
 
 
+# `_fetch`, run there by the host's own python3: the same check and unpacking, with no ms_env there yet.
+_FETCH_THERE = """import hashlib, os, shutil, sys, tempfile, urllib.request
+url, sha256, to = sys.argv[1:4]
+name = url.rsplit("/", 1)[-1]
+with tempfile.TemporaryDirectory() as held:
+    file, digest = os.path.join(held, name), hashlib.sha256()
+    with urllib.request.urlopen(url, timeout=60) as got, open(file, "wb") as out:
+        for chunk in iter(lambda: got.read(1 << 20), b""):
+            digest.update(chunk)
+            out.write(chunk)
+    if digest.hexdigest() != sha256:
+        sys.exit(f"{url} is not the file the recipe names: sha256 {digest.hexdigest()}, not {sha256}")
+    if any(name.endswith(ext) for _, extensions, _ in shutil.get_unpack_formats() for ext in extensions):
+        try:
+            shutil.unpack_archive(file, to, **({} if name.endswith(".zip") else {"filter": "data"}))
+        except TypeError:  # a python there older than the filter
+            shutil.unpack_archive(file, to)
+    else:
+        os.makedirs(os.path.dirname(to) or ".", exist_ok=True)
+        shutil.move(file, to)
+        os.chmod(to, 0o755)
+"""
+
+
+def _fetch_there(step: RecipeStep, host: Host, emit: Callable[[str], None]) -> None:
+    """A download for a remote host: made there when the host reaches the URL, else made here and sent."""
+    emit(f"downloading {step.url} on {host.address}")
+    try:
+        host.run(shlex.join(["python3", "-", step.url, step.sha256, step.to]), data=_FETCH_THERE.encode(),
+                 timeout=step.timeout)
+    except (HostError, subprocess.TimeoutExpired) as exc:
+        emit(f"{host.address} could not download it ({str(exc).splitlines()[-1][:200]}): sending it from here")
+        _fetch_and_send(step, host, emit)
+
+
 def _fetch_and_send(step: RecipeStep, host: Host, emit: Callable[[str], None]) -> None:
-    """A download for a remote host: made and checked here, then sent, so the host needs no curl."""
+    """A download for a host that has no python3 or no way out: made and checked here, then sent."""
     with tempfile.TemporaryDirectory() as held:
         _fetch(step.url, step.sha256, str(Path(held, posixpath.basename(step.to))), emit)
         parent = shlex.quote(posixpath.dirname(step.to))
@@ -412,7 +448,7 @@ def _step(step: RecipeStep, label: str, host: Host) -> Step:
         return Step(label + step.name, run=step.local, timeout=step.timeout)
     if step.url:
         run = partial(_fetch, step.url, step.sha256, step.to) if host.address is None else \
-            partial(_fetch_and_send, step, host)
+            partial(_fetch_there, step, host)
         return Step(label + step.name, run=run, timeout=step.timeout)
     if not step.send:
         return Step(label + step.name, argv=_argv_on(step.argv, host), timeout=step.timeout)

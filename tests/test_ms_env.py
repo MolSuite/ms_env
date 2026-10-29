@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import subprocess
 import dataclasses
+import hashlib
+import os
 import json
 import sys
 from pathlib import Path
@@ -294,7 +296,7 @@ def test_a_download_is_picked_per_platform_checked_and_installed(tmp_path, monke
         tools.ToolSpec.load(tmp_path / "bad.toml")
 
 
-def test_an_archive_is_unpacked_and_a_remote_host_gets_the_download_sent(tmp_path, monkeypatch):
+def test_an_archive_is_unpacked_and_a_remote_host_with_no_way_out_gets_the_download_sent(tmp_path, monkeypatch):
     import tarfile
     import zipfile
 
@@ -307,7 +309,13 @@ def test_an_archive_is_unpacked_and_a_remote_host_gets_the_download_sent(tmp_pat
     assert Path(recipe.prefix, "index.html").read_text() == "<html/>"
 
     sent: list[tuple[str, bytes]] = []
-    monkeypatch.setattr(Host, "run", lambda self, command, data=b"", timeout=0: sent.append((command, data)) or b"")
+
+    def run(self, command, data=b"", timeout=0):  # a host with no way out: what it cannot download is sent
+        if command.startswith("python3"):
+            raise tools.HostError("no route to host")
+        return sent.append((command, data)) or b""
+
+    monkeypatch.setattr(Host, "run", run)
     far = _download_spec(tmp_path, {"": _fake_exe(tmp_path / "release/faketool")}).recipe("/far/tools")
     run_step(tools.recipe_steps(far, Host("login.hpc"))[1])
     (command, data), = sent
@@ -343,3 +351,45 @@ def test_a_new_tag_on_the_same_code_builds_a_new_wheel(tmp_path):
     git("tag", "v0.2.0")  # a release of the same code: its wheel has another version
     assert before.startswith("v0.1.0-1-g") and app._described(tmp_path).startswith("v0.2.0-0-g")
     assert app._described(tmp_path / "not-a-checkout") == ""
+
+
+def test_a_folder_of_many_files_is_sent_as_a_tar_of_its_size(tmp_path):
+    import resource
+    import tarfile
+    from io import BytesIO
+
+    from ms_env.recipes import _tar
+
+    for i in range(300):  # each file once took a deep copy of all packed before it: GBs by 100
+        (tmp_path / "pack" / f"sub{i % 10}").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "pack" / f"sub{i % 10}" / f"f{i}.js").write_bytes(b"x" * 20_000)
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    data = _tar([str(tmp_path / "pack")])
+    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 200 * 1024  # kB
+    with tarfile.open(fileobj=BytesIO(data)) as tar:
+        members = tar.getmembers()
+    assert len([m for m in members if m.isfile()]) == 300 and all(m.mode == 0o755 for m in members)
+
+
+def test_a_host_downloads_for_itself_and_is_sent_the_file_only_when_it_cannot(tmp_path):
+    from ms_env.recipes import RecipeStep, _step
+
+    payload = tmp_path / "tool.bin"
+    payload.write_bytes(b"#!/bin/sh\necho hi\n")
+    digest = hashlib.sha256(payload.read_bytes()).hexdigest()
+
+    class Far(Host):  # a "remote" host that is this machine; `blocked` is a host with no way out
+        blocked = False
+
+        def argv(self, command):
+            if self.blocked and command.startswith("python3"):
+                return ["sh", "-c", "echo 'no route to host' >&2; exit 1"]
+            return ["sh", "-c", command]
+
+    for blocked in (False, True):
+        host, said = Far("far"), []
+        host.blocked = blocked
+        to = tmp_path / f"there-{blocked}" / "tool"
+        _step(RecipeStep("get", (), 60.0, url=payload.as_uri(), sha256=digest, to=str(to)), "", host).run(said.append)
+        assert to.read_bytes() == payload.read_bytes() and os.access(to, os.X_OK)
+        assert any("sending it from here" in line for line in said) == blocked
