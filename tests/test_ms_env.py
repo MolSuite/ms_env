@@ -420,3 +420,43 @@ def test_a_host_downloads_for_itself_and_is_sent_the_file_only_when_it_cannot(tm
         _step(RecipeStep("get", (), 60.0, url=payload.as_uri(), sha256=digest, to=str(to)), "", host).run(said.append)
         assert to.read_bytes() == payload.read_bytes() and os.access(to, os.X_OK)
         assert any("sending it from here" in line for line in said) == blocked
+
+
+@pytest.mark.parametrize("host", [tools.LOCAL, Host("far", ssh=("sh", "-c", 'exec sh -c "$2"', "_"))])
+def test_a_prefix_is_changed_by_one_client_at_a_time(tmp_path, host):
+    prefix = str(tmp_path / "envs" / "tool")
+    with tools.prefix_lock(prefix, host):
+        assert (tmp_path / "envs" / "tool.ms-env-lock" / "owner.json").is_file()
+        with pytest.raises((RuntimeError, tools.HostError), match="locked"):
+            with tools.prefix_lock(prefix, host):
+                pass
+    assert not (tmp_path / "envs" / "tool.ms-env-lock").exists()  # released: the next one gets it
+    recipe = tools.Recipe("tool", prefix, (), (), (), ())
+    with tools.prefix_lock(prefix, host), pytest.raises((RuntimeError, tools.HostError), match="locked"):
+        tools.remove(recipe, host)
+
+
+@pytest.mark.parametrize("host", [tools.LOCAL, Host("far", ssh=("sh", "-c", 'exec sh -c "$2"', "_"))])
+def test_a_lock_left_by_a_client_that_stopped_is_taken_only_when_this_machine_can_tell(tmp_path, host):
+    import json
+    import socket
+    import subprocess
+    import sys
+
+    prefix, lock = str(tmp_path / "tool"), tmp_path / "tool.ms-env-lock"
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    for client, pid in ((socket.gethostname(), dead.pid), (socket.gethostname(), os.getpid())):
+        lock.mkdir()
+        (lock / "owner.json").write_text(json.dumps({"client": client, "pid": pid, "started": "then"}))
+        with tools.prefix_lock(prefix, host):  # stopped, or this pid now another process: stale
+            assert json.loads((lock / "owner.json").read_text())["started"] != "then"
+        assert not lock.exists()
+    lock.mkdir()
+    (lock / "owner.json").write_text(json.dumps({"client": "elsewhere", "pid": 1, "since": "today"}))
+    with pytest.raises(tools.Locked, match="elsewhere") as said:
+        with tools.prefix_lock(prefix, host):
+            pass
+    assert said.value.owner["client"] == "elsewhere" and lock.exists()  # another machine's: never guessed
+    assert tools.unlock(said.value.prefix, said.value.host)["client"] == "elsewhere" and not lock.exists()
+    assert tools.unlock(prefix, host) == {}
