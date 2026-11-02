@@ -75,6 +75,7 @@ from typing import Any, Callable, Iterable
 
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step
 from ms_env.host import LOCAL, Host, HostError
+from ms_env.locking import prefix_lock
 
 READY = "ready"
 MISSING = "missing"
@@ -649,17 +650,18 @@ def remove(recipe: Recipe, host: Host = LOCAL) -> bool:
         current = _INSTALLS.get(key)
         if current is not None and not current.future.done():
             raise RuntimeError(f"{recipe.name} is being installed on {host.address or 'this machine'}.")
-    if host.address is None:
-        _prefix(recipe)
-        if not (Path(recipe.prefix, STAMP).is_file() or Path(recipe.prefix + _INSTALLING).is_file()):
-            return False
-        _delete(recipe.prefix, recipe.prefix + _INSTALLING)
-        return True
-    script = (
-        f'p={_prefix(recipe)}\n[ -f "$p/{STAMP}" ] || [ -f "$p{_INSTALLING}" ] || {{ echo no; exit 0; }}\n'
-        f'rm -rf -- "$p" "$p{_INSTALLING}"'
-    )
-    return host.run(script, timeout=600).decode().strip() != "no"
+    with prefix_lock(recipe.prefix, host):
+        if host.address is None:
+            _prefix(recipe)
+            if not (Path(recipe.prefix, STAMP).is_file() or Path(recipe.prefix + _INSTALLING).is_file()):
+                return False
+            _delete(recipe.prefix, recipe.prefix + _INSTALLING)
+            return True
+        script = (
+            f'p={_prefix(recipe)}\n[ -f "$p/{STAMP}" ] || [ -f "$p{_INSTALLING}" ] || {{ echo no; exit 0; }}\n'
+            f'rm -rf -- "$p" "$p{_INSTALLING}"'
+        )
+        return host.run(script, timeout=600).decode().strip() != "no"
 
 
 # ----------------------------------------------------------------------------
@@ -727,8 +729,9 @@ def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[]
             install.done, install.total = 1, 1 + len(steps)
             with _LOCK:
                 changing = _CHANGING.setdefault(host.address or "", threading.Lock())
-            # ponytail: one install at a time on a host (they share its micromamba and its package cache)
-            with changing:
+            # ponytail: one install at a time on a host (they share its micromamba and its package cache);
+            # the prefix lock keeps two clients of a shared home from changing the same environment.
+            with changing, prefix_lock(recipe.prefix, host):
                 for step in steps:
                     install.step = step.name
                     run_step(step, install.lines.append)

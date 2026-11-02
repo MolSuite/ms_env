@@ -22,6 +22,7 @@ from ms_env.recipes import (
 )
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step, run_steps
 from ms_env.host import LOCAL, Host, HostError, conda_platform
+from ms_env.locking import prefix_lock
 
 __all__ = [
     "Install",
@@ -48,4 +49,5 @@ __all__ = [
     "run_steps",
     "status",
     "verify",
+    "prefix_lock",
 ]

@@ -420,3 +420,17 @@ def test_a_host_downloads_for_itself_and_is_sent_the_file_only_when_it_cannot(tm
         _step(RecipeStep("get", (), 60.0, url=payload.as_uri(), sha256=digest, to=str(to)), "", host).run(said.append)
         assert to.read_bytes() == payload.read_bytes() and os.access(to, os.X_OK)
         assert any("sending it from here" in line for line in said) == blocked
+
+
+@pytest.mark.parametrize("host", [tools.LOCAL, Host("far", ssh=("sh", "-c", 'exec sh -c "$2"', "_"))])
+def test_a_prefix_is_changed_by_one_client_at_a_time(tmp_path, host):
+    prefix = str(tmp_path / "envs" / "tool")
+    with tools.prefix_lock(prefix, host):
+        assert (tmp_path / "envs" / "tool.ms-env-lock" / "owner.json").is_file()
+        with pytest.raises((RuntimeError, tools.HostError), match="locked"):
+            with tools.prefix_lock(prefix, host):
+                pass
+    assert not (tmp_path / "envs" / "tool.ms-env-lock").exists()  # released: the next one gets it
+    recipe = tools.Recipe("tool", prefix, (), (), (), ())
+    with tools.prefix_lock(prefix, host), pytest.raises((RuntimeError, tools.HostError), match="locked"):
+        tools.remove(recipe, host)
