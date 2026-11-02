@@ -458,5 +458,5 @@ def test_a_lock_left_by_a_client_that_stopped_is_taken_only_when_this_machine_ca
         with tools.prefix_lock(prefix, host):
             pass
     assert said.value.owner["client"] == "elsewhere" and lock.exists()  # another machine's: never guessed
-    assert tools.unlock(prefix, host)["client"] == "elsewhere" and not lock.exists()
+    assert tools.unlock(said.value.prefix, said.value.host)["client"] == "elsewhere" and not lock.exists()
     assert tools.unlock(prefix, host) == {}

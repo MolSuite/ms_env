@@ -21,10 +21,11 @@ _LOCK_SH = ('p={prefix}; mkdir -p "$(dirname "$p")" || exit 1; '
 
 
 class Locked(RuntimeError):
-    """The prefix is another client's now: `owner` is what it wrote (`client`, `pid`, `since`)."""
+    """The prefix is another client's now: `owner` is what it wrote (`client`, `pid`, `since`);
+    `unlock(prefix, host)` removes the lock once that client is known to have stopped."""
 
-    def __init__(self, lock: str, owner: dict):
-        self.lock, self.owner = lock, owner
+    def __init__(self, prefix: str, host: Host, lock: str, owner: dict):
+        self.prefix, self.host, self.lock, self.owner = prefix, host, lock, owner
         who = f"{owner.get('client', '?')} (pid {owner.get('pid', '?')}) since {owner.get('since', '?')}"
         super().__init__(f"environment is locked by {who}: {lock}; once that client stopped, "
                          "`ms_env.unlock` removes the lock")
@@ -121,7 +122,7 @@ def prefix_lock(prefix: str, host: Host = LOCAL):
         _drop(lock, host, held)
         lock, held = _take(prefix, host, owner)
     if held is not None:
-        raise Locked(lock, _owner(held))
+        raise Locked(prefix, host, lock, _owner(held))
     try:
         yield
     finally:
