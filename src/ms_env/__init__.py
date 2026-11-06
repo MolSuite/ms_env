@@ -22,6 +22,7 @@ from ms_env.recipes import (
 )
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step, run_steps
 from ms_env.host import LOCAL, Host, HostError, conda_platform
+from ms_env.connect import connect
 from ms_env.locking import Locked, prefix_lock, unlock
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "ToolSpec",
     "UNREACHABLE",
     "conda_platform",
+    "connect",
     "app_recipe",
     "ensure",
     "find_environment_manager",

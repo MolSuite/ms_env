@@ -460,3 +460,25 @@ def test_a_lock_left_by_a_client_that_stopped_is_taken_only_when_this_machine_ca
     assert said.value.owner["client"] == "elsewhere" and lock.exists()  # another machine's: never guessed
     assert tools.unlock(said.value.prefix, said.value.host)["client"] == "elsewhere" and not lock.exists()
     assert tools.unlock(prefix, host) == {}
+
+
+def test_connect_names_a_host_once_and_relays_what_ssh_asks(tmp_path):
+    from ms_env.connect import asking, name_host
+
+    (tmp_path / "config").write_text("Host mine\n    User me\n")
+    key = name_host("lab", "10.0.0.1", "user", "2222", tmp_path)
+    name_host("other", "10.0.0.2", ssh_dir=tmp_path)
+    name_host("lab", "10.0.0.9", "user", ssh_dir=tmp_path)  # named again: it replaces, the key stays
+    main = (tmp_path / "config").read_text().splitlines()
+    assert main[0] == f'Include "{tmp_path / "molsuite" / "config"}"' and main.count(main[0]) == 1
+    assert main[1:] == ["Host mine", "    User me"]
+    ours = (tmp_path / "molsuite" / "config").read_text()
+    assert ours.count("Host lab\n") == 1 and "10.0.0.9" in ours and "10.0.0.1" not in ours and "Host other" in ours
+    assert key.exists() and key.with_name("lab.pub").exists() and "Port" not in ours.split("Host lab")[1]
+
+    questions = []
+    with asking(lambda question: questions.append(question) or (None if "no" in question else "s3cret")) as env:
+        said = subprocess.run([env["SSH_ASKPASS"], "Password:"], env=env, capture_output=True)
+        refused = subprocess.run([env["SSH_ASKPASS"], "say no"], env=env, capture_output=True)
+    assert (said.returncode, said.stdout) == (0, b"s3cret\n") and refused.returncode == 1
+    assert questions == ["Password:", "say no"]

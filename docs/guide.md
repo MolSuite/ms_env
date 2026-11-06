@@ -150,8 +150,35 @@ home = host.home()                  # the home of the account there
 host.run("nproc").decode()          # what the command printed; HostError when it fails
 ```
 
-A failed login says what to do: `ssh-copy-id` when the key is not accepted, a
-first login by hand when the host key is not known yet.
+A failed login says what to do: `connect` (below) or `ssh-copy-id` when the key
+is not accepted, a first login when the host key is not known yet.
+
+## Connecting once
+
+`connect` makes a machine one `ssh` gets into alone, from a login with its
+password, given once:
+
+```python
+from ms_env import connect
+
+how = connect("cluster", "me@login.hpc", ask)   # ask(question) -> answer, or None
+Host("cluster").run("hostname")
+```
+
+- The key is made for that machine, `~/.ssh/molsuite/<name>`, and put there on
+  that login.
+- The machine is named in `~/.ssh/molsuite/config`; `~/.ssh/config` gets one
+  `Include` line, at its top. Connecting again replaces that name.
+- `ask` gets each question of `ssh` in its words: whether to trust the
+  machine's key (with its fingerprint), the password, a code. The answers go to
+  `ssh` and are kept nowhere. `None` is no answer, and the login fails.
+- It returns `"key"` when the key gets in alone from then on. A site that
+  wants more than a key (a second factor) returns `"session"`: the login stays
+  open for `persist` (8 h) and the commands of `Host` go through it; when it
+  ends, connect again.
+- A site that takes no password says so, with the key to give it another way.
+
+Not on Windows, whose `ssh` keeps no login open.
 
 ## The environment of an app
 
