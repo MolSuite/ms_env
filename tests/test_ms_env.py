@@ -270,8 +270,9 @@ def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     recipe = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
                               cache=tmp_path)
     wheel = next(tmp_path.glob("ms_env-*/ms_env-*.whl"))  # this checkout, built
-    install = recipe.refresh[1].argv
+    needs, install = recipe.refresh[1].argv, recipe.refresh[2].argv
     assert f"/far/env/.ms_env.d/{wheel.name}" in install and f"pytest=={pytest.__version__}" in install
+    assert "--no-deps" in install and any(need.startswith("pluggy") for need in needs)  # what pytest asks for
     assert set(recipe.refresh[0].send) == {str(tmp_path / "constraints.txt"), str(tmp_path / "constraints-pip.txt"),
                                            str(wheel)}
     pins = (tmp_path / "constraints.txt").read_text().splitlines()
@@ -281,6 +282,18 @@ def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     again = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
                              cache=tmp_path)
     assert again.stamp == recipe.stamp and app._checkout("pytest") is None
+
+
+def test_the_app_needs_what_its_packages_ask_for_but_what_is_left_out():
+    from ms_env.app import _needs
+
+    shipped = {
+        "app": (["lib[gui]>=1", "numpy>=2", "vina; sys_platform == 'linux'", "app[extra]; extra == 'all'",
+                 "scipy; extra == 'extra'", "jdk; extra == 'unasked'"], {"all"}),
+        "lib": (["PySide6>=6.5", "pymol-open-source; extra == 'gui'", "pydantic; extra == 'monitor'"], set()),
+    }
+    assert _needs(shipped, {"pyside6", "pymol-open-source"}) == ["numpy>=2", "scipy", "vina; sys_platform == 'linux'"]
+    assert "PySide6>=6.5" in _needs(shipped, set())
 
 
 def _download_spec(tmp_path: Path, builds: dict[str, Path], to: str = "{prefix}/faketool") -> tools.ToolSpec:

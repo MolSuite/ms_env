@@ -14,6 +14,8 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
+from email.parser import BytesParser
 from importlib import metadata
 from pathlib import Path
 from typing import Iterable
@@ -96,6 +98,46 @@ def _constraints() -> tuple[str, str]:
     return pins(True), pins(False)
 
 
+def _canonical(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _requires(source: Path | str) -> list[str]:
+    """The `Requires-Dist` of a built wheel (a Path) or of an installed distribution (a name)."""
+    if isinstance(source, str):
+        return metadata.requires(source) or []
+    with zipfile.ZipFile(source) as wheel:
+        found = next(name for name in wheel.namelist() if name.endswith(".dist-info/METADATA"))
+        return BytesParser().parsebytes(wheel.read(found)).get_all("Requires-Dist") or []
+
+
+def _needs(shipped: dict[str, tuple[list[str], set[str]]], leave_out: set[str]) -> list[str]:
+    """What the packages in `shipped` (canonical name: their `Requires-Dist`, the extras asked of
+    them) need besides each other, without any name in `leave_out`: those are not installed there,
+    and neither is what only they would have brought."""
+    extras = {name: {_canonical(extra) for extra in asked} for name, (_, asked) in shipped.items()}
+    while True:
+        needs, grew = set(), False
+        for name, (requires, _) in shipped.items():
+            for line in requires:
+                head, _, marker = line.partition(";")
+                gated = {_canonical(extra) for extra in re.findall(r"extra\s*==\s*[\"']([^\"']+)", marker)}
+                # ponytail: the rest of an extra's marker is dropped with it; none of ours has one
+                if gated and not gated & extras[name]:
+                    continue
+                target = _canonical(re.match(r"\s*([\w.-]+)", head).group(1))
+                if target in leave_out:
+                    continue
+                if target in shipped:
+                    asked = {_canonical(extra) for extra in re.findall(r"[\w.-]+", head.partition("[")[2].partition("]")[0])}
+                    grew |= not asked <= extras[target]
+                    extras[target] |= asked
+                    continue
+                needs.add(head.strip() if gated else line.strip())
+        if not grew:
+            return sorted(needs)
+
+
 def app_recipe(
     name: str,
     requirements: Iterable[str],
@@ -105,6 +147,7 @@ def app_recipe(
     tools_home: str,
     cache: Path | str,
     manager: str = "",
+    leave_out: Iterable[str] = (),
 ) -> Recipe:
     """The recipe that gives a host the environment `requirements` run in here.
 
@@ -113,22 +156,26 @@ def app_recipe(
     asked for in the version it has. `imports` are the modules that have to import there for
     the environment to count as usable. `prefix` and `tools_home` are paths on the host (see
     `Host.home`); `cache` is a directory of this machine for the wheels.
+    `leave_out` names what the host goes without, though the packages ask for it (a GUI where
+    only their jobs run): what only those would bring is left out too.
 
     The environment is updated where it stands for as long as the Python is the same. Builds
     wheels the first time, and after the code changes: keep it off UI threads.
     """
     prefix, cache = str(prefix).rstrip("/"), Path(cache)
-    code, wheels, wanted, tags = f"{prefix}/{_CODE}", [], [], []
+    code, wheels, wanted, tags, shipped = f"{prefix}/{_CODE}", [], [], [], {}
     for requirement in requirements:
         dist, extras = re.fullmatch(r"\s*([\w.-]+)\s*(\[[^]]*])?\s*", requirement).groups()
         module = re.sub(r"[-.]+", "_", dist).lower()
         root = _checkout(module)
         if root is None:
-            wanted.append(f"{dist}{extras or ''}=={metadata.version(dist)}")
-            continue
-        tags.append(_tree_hash(root, module))
-        wheels.append(_wheel(root, tags[-1], cache))
-        wanted.append(f"{code}/{wheels[-1].name}{extras or ''}")
+            wanted.append(f"{dist}=={metadata.version(dist)}")
+        else:
+            tags.append(_tree_hash(root, module))
+            wheels.append(_wheel(root, tags[-1], cache))
+            wanted.append(f"{code}/{wheels[-1].name}")
+        shipped[_canonical(dist)] = (_requires(wheels[-1] if root else dist), set(re.findall(r"[\w.-]+", extras or "")))
+    needs = _needs(shipped, {_canonical(name) for name in leave_out})
     cache.mkdir(parents=True, exist_ok=True)
     constraints, loose = cache / "constraints.txt", cache / "constraints-pip.txt"
     everything, by_pip = _constraints()
@@ -152,19 +199,14 @@ def app_recipe(
             send=(str(constraints), str(loose), *map(str, wheels)),
         ),
         RecipeStep(
-            f"install {name} and what it needs",
-            ("bash", "-c", pinned, f"{prefix}/bin/python", code, *wanted),
+            f"install what {name} needs",
+            ("bash", "-c", pinned, f"{prefix}/bin/python", code, *needs),
             3600.0,
         ),
+        # Its own packages without what they ask for: `needs` is that, less `leave_out`. Forced, as
+        # the version of a checkout does not change with its code and pip would keep the old one.
+        RecipeStep(f"install {name}", (*pip, "--no-deps", "--force-reinstall", *wanted), 600.0),
     ]
-    if wheels:  # the version of a checkout does not change with its code: pip would keep the old one
-        refresh.append(
-            RecipeStep(
-                f"install the code of {name} as it is here",
-                (*pip, "--no-deps", "--force-reinstall", *(f"{code}/{wheel.name}" for wheel in wheels)),
-                600.0,
-            )
-        )
     conda = (f"python={platform.python_version()}", "pip")
     values = {"prefix": prefix, "tools_home": str(tools_home).rstrip("/")}
     short = lambda *parts: hashlib.sha256(repr(parts).encode()).hexdigest()[:16]  # noqa: E731
@@ -176,7 +218,7 @@ def app_recipe(
         check=("{exe}", "-c", "import " + ", ".join(imports)),
         steps=(*_env_steps(name, conda, (), ("conda-forge",), values, manager), *refresh),
         conda=conda,
-        stamp=short(conda, wanted, tags, constraints.read_text(encoding="utf-8")),
+        stamp=short(conda, wanted, needs, tags, constraints.read_text(encoding="utf-8")),
         refresh=tuple(refresh),
         base=short(conda),
     )

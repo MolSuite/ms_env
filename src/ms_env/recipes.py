@@ -318,7 +318,14 @@ def _find_or_bootstrap_manager(hint: str, tools_home: str) -> str:
   M={root}/bin/micromamba
   if [ ! -x "$M" ]; then
     echo "no micromamba found: installing it into {root}"
-    mkdir -p {root} && curl -fsSL "https://micro.mamba.pm/api/micromamba/$p/latest" | tar -xj -C {root} bin/micromamba || exit 1
+    url="https://micro.mamba.pm/api/micromamba/$p/latest"
+    mkdir -p {root} && if command -v curl > /dev/null && command -v bzip2 > /dev/null; then
+      curl -fsSL "$url" | tar -xj -C {root} bin/micromamba
+    else  # a minimal login node may lack either, not a python3: it does both
+      python3 -W ignore -c 'import sys, tarfile, urllib.request
+t = tarfile.open(fileobj=urllib.request.urlopen(sys.argv[1]), mode="r|bz2")
+[t.extract(m, sys.argv[2]) for m in t if m.name == "bin/micromamba"]' "$url" {root}
+    fi && [ -x {root}/bin/micromamba ] || exit 1
   fi
   export MAMBA_ROOT_PREFIX={root}
 }}"""
