@@ -26,7 +26,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.74">
+      <meta name="generator" content="zensical-0.1.0">
     
     
       
@@ -407,6 +407,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#connecting-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Connecting once
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-environment-of-an-app" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -574,6 +585,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         A host
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connecting-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Connecting once
       </span>
     </span>
   </a>
@@ -796,8 +818,31 @@ system's <code>ssh</code> with <code>BatchMode=yes</code>:</p>
 <span class="n">home</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">home</span><span class="p">()</span>                  <span class="c1"># the home of the account there</span>
 <span class="n">host</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"nproc"</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>          <span class="c1"># what the command printed; HostError when it fails</span>
 </code></pre></div>
-<p>A failed login says what to do: <code>ssh-copy-id</code> when the key is not accepted, a
-first login by hand when the host key is not known yet.</p>
+<p>A failed login says what to do: <code>connect</code> (below) or <code>ssh-copy-id</code> when the key
+is not accepted, a first login when the host key is not known yet.</p>
+<h2 id="connecting-once">Connecting once<a class="headerlink" href="#connecting-once" title="Permanent link">&para;</a></h2>
+<p><code>connect</code> makes a machine one <code>ssh</code> gets into alone, from a login with its
+password, given once:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ms_env</span><span class="w"> </span><span class="kn">import</span> <span class="n">connect</span>
+
+<span class="n">how</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="s2">"cluster"</span><span class="p">,</span> <span class="s2">"me@login.hpc"</span><span class="p">,</span> <span class="n">ask</span><span class="p">)</span>   <span class="c1"># ask(question) -&gt; answer, or None</span>
+<span class="n">Host</span><span class="p">(</span><span class="s2">"cluster"</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">"hostname"</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>The key is made for that machine, <code>~/.ssh/molsuite/&lt;name&gt;</code>, and put there on
+  that login.</li>
+<li>The machine is named in <code>~/.ssh/molsuite/config</code>; <code>~/.ssh/config</code> gets one
+  <code>Include</code> line, at its top. Connecting again replaces that name.</li>
+<li><code>ask</code> gets each question of <code>ssh</code> in its words: whether to trust the
+  machine's key (with its fingerprint), the password, a code. The answers go to
+  <code>ssh</code> and are kept nowhere. <code>None</code> is no answer, and the login fails.</li>
+<li>It returns <code>"key"</code> when the key gets in alone from then on. A site that
+  wants more than a key (a second factor) returns <code>"session"</code>: the login stays
+  open for <code>persist</code> (8 h) and the commands of <code>Host</code> go through it; when it
+  ends, connect again.</li>
+<li>A site that takes no password says so, with the key to give it another way.</li>
+</ul>
+<p>Not on Windows, whose <code>ssh</code> keeps no login open.</p>
 <h2 id="the-environment-of-an-app">The environment of an app<a class="headerlink" href="#the-environment-of-an-app" title="Permanent link">&para;</a></h2>
 <p><code>app_recipe</code> makes the recipe that gives a host the environment an app runs in
 here: the same Python and the same versions of what this one has installed.</p>
