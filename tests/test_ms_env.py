@@ -132,12 +132,12 @@ def test_install_needs_no_project(tmp_path, monkeypatch):
     assert "boom detail" in broken.lines
 
 
-def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeypatch):
+def test_installs_on_one_host_go_two_at_a_time_and_count_their_steps(tmp_path, monkeypatch):
     import time
 
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
     recipes = []
-    for name in ("a", "b"):
+    for name in ("a", "b", "c"):
         (tmp_path / name).mkdir()
         recipes.append(dataclasses.replace(_plain_spec(tmp_path / name, slow=True), name=f"faketool-{name}"))
     start = time.monotonic()
@@ -150,9 +150,10 @@ def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeyp
         install.future.result(timeout=30)
     assert "wait" in running, running
     assert all(install.step == "" for install in installs)  # named while it runs, not after
-    assert time.monotonic() - start >= 2  # one `sleep 1` after the other: they share the host's micromamba
+    # two `sleep 1` side by side, the third after them: the host's login node is spared
+    assert 2 <= time.monotonic() - start < 3
     # the check, "prepare", the two steps of the recipe, the stamp
-    assert [(install.done, install.total) for install in installs] == [(5, 5), (5, 5)]
+    assert [(install.done, install.total) for install in installs] == [(5, 5)] * 3
     again = tools.ensure(recipes[0])
     again.future.result(timeout=30)
     assert (again.done, again.total) == (1, 1)  # only the check: nothing to install
@@ -270,8 +271,9 @@ def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     recipe = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
                               cache=tmp_path)
     wheel = next(tmp_path.glob("ms_env-*/ms_env-*.whl"))  # this checkout, built
-    install = recipe.refresh[1].argv
+    needs, install = recipe.refresh[1].argv, recipe.refresh[2].argv
     assert f"/far/env/.ms_env.d/{wheel.name}" in install and f"pytest=={pytest.__version__}" in install
+    assert "--no-deps" in install and any(need.startswith("pluggy") for need in needs)  # what pytest asks for
     assert set(recipe.refresh[0].send) == {str(tmp_path / "constraints.txt"), str(tmp_path / "constraints-pip.txt"),
                                            str(wheel)}
     pins = (tmp_path / "constraints.txt").read_text().splitlines()
@@ -281,6 +283,18 @@ def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     again = tools.app_recipe("app", ["ms_env", "pytest"], ["ms_env"], prefix="/far/env", tools_home="/far/tools",
                              cache=tmp_path)
     assert again.stamp == recipe.stamp and app._checkout("pytest") is None
+
+
+def test_the_app_needs_what_its_packages_ask_for_but_what_is_left_out():
+    from ms_env.app import _needs
+
+    shipped = {
+        "app": (["lib[gui]>=1", "numpy>=2", "vina; sys_platform == 'linux'", "app[extra]; extra == 'all'",
+                 "scipy; extra == 'extra'", "jdk; extra == 'unasked'"], {"all"}),
+        "lib": (["PySide6>=6.5", "pymol-open-source; extra == 'gui'", "pydantic; extra == 'monitor'"], set()),
+    }
+    assert _needs(shipped, {"pyside6", "pymol-open-source"}) == ["numpy>=2", "scipy", "vina; sys_platform == 'linux'"]
+    assert "PySide6>=6.5" in _needs(shipped, set())
 
 
 def _download_spec(tmp_path: Path, builds: dict[str, Path], to: str = "{prefix}/faketool") -> tools.ToolSpec:

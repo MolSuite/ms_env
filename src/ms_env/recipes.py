@@ -269,11 +269,15 @@ def _manager_here(hint: str, tools_home: str, platform: str, emit: Callable[[str
     if not (root / member).is_file():
         emit(f"no micromamba found: installing it into {root}")
         url = f"https://micro.mamba.pm/api/micromamba/{platform}/latest"
-        try:
-            with urllib.request.urlopen(url, timeout=60) as got, tarfile.open(fileobj=got, mode="r|bz2") as tar:
+        root.mkdir(parents=True, exist_ok=True)
+        try:  # unpacked aside and moved in whole: two installs at once may both fetch it
+            with tempfile.TemporaryDirectory(dir=root) as aside, urllib.request.urlopen(url, timeout=60) as got, \
+                    tarfile.open(fileobj=got, mode="r|bz2") as tar:
                 for entry in tar:
                     if entry.name == member:
-                        tar.extract(entry, root, filter="data")
+                        tar.extract(entry, aside, filter="data")
+                        (root / member).parent.mkdir(parents=True, exist_ok=True)
+                        os.replace(Path(aside) / member, root / member)
                         break
         except OSError as exc:
             raise StepFailed(f"no micromamba here and none from {url}: {exc}") from exc
@@ -318,7 +322,17 @@ def _find_or_bootstrap_manager(hint: str, tools_home: str) -> str:
   M={root}/bin/micromamba
   if [ ! -x "$M" ]; then
     echo "no micromamba found: installing it into {root}"
-    mkdir -p {root} && curl -fsSL "https://micro.mamba.pm/api/micromamba/$p/latest" | tar -xj -C {root} bin/micromamba || exit 1
+    url="https://micro.mamba.pm/api/micromamba/$p/latest"
+    # unpacked aside and moved in whole: two installs at once on this host may both fetch it
+    get={root}/.get.$$
+    mkdir -p "$get" {root}/bin && if command -v curl > /dev/null && command -v bzip2 > /dev/null; then
+      curl -fsSL "$url" | tar -xj -C "$get" bin/micromamba
+    else  # a minimal login node may lack either, not a python3: it does both
+      python3 -W ignore -c 'import sys, tarfile, urllib.request
+t = tarfile.open(fileobj=urllib.request.urlopen(sys.argv[1]), mode="r|bz2")
+[t.extract(m, sys.argv[2]) for m in t if m.name == "bin/micromamba"]' "$url" "$get"
+    fi && mv -f "$get/bin/micromamba" {root}/bin/micromamba; rm -rf "$get"
+    [ -x {root}/bin/micromamba ] || exit 1
   fi
   export MAMBA_ROOT_PREFIX={root}
 }}"""
@@ -681,7 +695,10 @@ class Install:
 
 _INSTALLS: dict[str, Install] = {}
 _LOCK = threading.Lock()
-_CHANGING: dict[str, threading.Lock] = {}  # by host: the checks run side by side, the installs one at a time
+# By host: the checks run side by side, the installs a few at a time. They share its micromamba and
+# its package cache (micromamba locks that cache), and a login node is shared with other users.
+_AT_ONCE = 2
+_CHANGING: dict[str, threading.BoundedSemaphore] = {}
 
 
 def ensure(recipe: Recipe, host: Host = LOCAL, busy: Callable[[], str] | None = None) -> Install:
@@ -728,9 +745,9 @@ def _run_install(install: Install, recipe: Recipe, host: Host, busy: Callable[[]
             steps = recipe_steps(recipe, host, refresh=bool(recipe.base) and _base(owner) == recipe.base)
             install.done, install.total = 1, 1 + len(steps)
             with _LOCK:
-                changing = _CHANGING.setdefault(host.address or "", threading.Lock())
-            # ponytail: one install at a time on a host (they share its micromamba and its package cache);
-            # the prefix lock keeps two clients of a shared home from changing the same environment.
+                changing = _CHANGING.setdefault(host.address or "", threading.BoundedSemaphore(_AT_ONCE))
+            # ponytail: _AT_ONCE fixed; a setting per host if a site wants its login node spared more.
+            # The prefix lock keeps two clients of a shared home from changing the same environment.
             with changing, prefix_lock(recipe.prefix, host):
                 for step in steps:
                     install.step = step.name
