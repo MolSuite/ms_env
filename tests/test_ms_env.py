@@ -132,12 +132,12 @@ def test_install_needs_no_project(tmp_path, monkeypatch):
     assert "boom detail" in broken.lines
 
 
-def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeypatch):
+def test_installs_on_one_host_go_two_at_a_time_and_count_their_steps(tmp_path, monkeypatch):
     import time
 
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
     recipes = []
-    for name in ("a", "b"):
+    for name in ("a", "b", "c"):
         (tmp_path / name).mkdir()
         recipes.append(dataclasses.replace(_plain_spec(tmp_path / name, slow=True), name=f"faketool-{name}"))
     start = time.monotonic()
@@ -150,9 +150,10 @@ def test_installs_on_one_host_take_turns_and_count_their_steps(tmp_path, monkeyp
         install.future.result(timeout=30)
     assert "wait" in running, running
     assert all(install.step == "" for install in installs)  # named while it runs, not after
-    assert time.monotonic() - start >= 2  # one `sleep 1` after the other: they share the host's micromamba
+    # two `sleep 1` side by side, the third after them: the host's login node is spared
+    assert 2 <= time.monotonic() - start < 3
     # the check, "prepare", the two steps of the recipe, the stamp
-    assert [(install.done, install.total) for install in installs] == [(5, 5), (5, 5)]
+    assert [(install.done, install.total) for install in installs] == [(5, 5)] * 3
     again = tools.ensure(recipes[0])
     again.future.result(timeout=30)
     assert (again.done, again.total) == (1, 1)  # only the check: nothing to install
