@@ -280,7 +280,8 @@ def _manager_here(hint: str, tools_home: str, platform: str, emit: Callable[[str
                         os.replace(Path(aside) / member, root / member)
                         break
         except OSError as exc:
-            raise StepFailed(f"no micromamba here and none from {url}: {exc}") from exc
+            raise StepFailed(f"no micromamba here and none from {url} ({exc}): does this machine reach "
+                             "the internet? Creating environments needs conda-forge too.") from exc
         if not (root / member).is_file():
             raise StepFailed(f"no micromamba here and no {member} in {url}")
     return str(root / member), str(root)
@@ -325,14 +326,21 @@ def _find_or_bootstrap_manager(hint: str, tools_home: str) -> str:
     url="https://micro.mamba.pm/api/micromamba/$p/latest"
     # unpacked aside and moved in whole: two installs at once on this host may both fetch it
     get={root}/.get.$$
-    mkdir -p "$get" {root}/bin && if command -v curl > /dev/null && command -v bzip2 > /dev/null; then
-      curl -fsSL "$url" | tar -xj -C "$get" bin/micromamba
+    mkdir -p "$get" {root}/bin
+    # to a file first: piped into tar, a failed download reads as a broken bzip2 archive
+    if command -v curl > /dev/null && command -v bzip2 > /dev/null; then
+      curl -fsSL "$url" -o "$get/m.tar.bz2" && tar -xjf "$get/m.tar.bz2" -C "$get" bin/micromamba
     else  # a minimal login node may lack either, not a python3: it does both
       python3 -W ignore -c 'import sys, tarfile, urllib.request
 t = tarfile.open(fileobj=urllib.request.urlopen(sys.argv[1]), mode="r|bz2")
-[t.extract(m, sys.argv[2]) for m in t if m.name == "bin/micromamba"]' "$url" "$get"
-    fi && mv -f "$get/bin/micromamba" {root}/bin/micromamba; rm -rf "$get"
-    [ -x {root}/bin/micromamba ] || exit 1
+[t.extract(m, sys.argv[2]) for m in t if m.name == "bin/micromamba"]' "$url" "$get" 2> /dev/null
+    fi
+    [ -f "$get/bin/micromamba" ] && mv -f "$get/bin/micromamba" {root}/bin/micromamba; rm -rf "$get"
+    [ -x {root}/bin/micromamba ] || {{
+      echo "could not download micromamba from $url: does this host reach the internet? Without it, \
+install micromamba there by hand (or put it on PATH); creating environments needs conda-forge too." >&2
+      exit 1
+    }}
   fi
   export MAMBA_ROOT_PREFIX={root}
 }}"""
