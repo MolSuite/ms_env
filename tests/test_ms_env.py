@@ -496,3 +496,19 @@ def test_connect_names_a_host_once_and_relays_what_ssh_asks(tmp_path):
         refused = subprocess.run([env["SSH_ASKPASS"], "say no"], env=env, capture_output=True)
     assert (said.returncode, said.stdout) == (0, b"s3cret\n") and refused.returncode == 1
     assert questions == ["Password:", "say no"]
+
+
+def test_a_tool_that_failed_says_what_its_code_means_even_from_another_process(tmp_path):
+    import pickle
+
+    path = tmp_path / "vina.toml"
+    path.write_text('[tool]\nname = "vina"\n[locate]\ncommands = ["vina"]\n[exit_codes]\n2 = "bad input"\n')
+    spec = tools.ToolSpec.load(path)
+    assert str(spec.failed(2, "nope\n")) == "vina exited with 2 (bad input): nope"
+    assert spec.failed(-9).meaning == spec.failed(137).meaning and "out of memory" in spec.failed(137).meaning
+    assert spec.failed(139).meaning.startswith("crashed (SIGSEGV)") and spec.failed(127).meaning == "it was not found"
+    assert spec.failed(1).meaning == "" and str(spec.failed(1)) == "vina exited with 1"
+    assert tools.meaning(-10) == "ended by SIGUSR1"
+    error = pickle.loads(pickle.dumps(spec.failed(137, "x" * 2000 + "end")))
+    assert isinstance(error, tools.ToolFailed) and (error.tool, error.code) == ("vina", 137)
+    assert str(error).startswith("vina exited with 137 (killed") and str(error).endswith("end") and len(str(error)) < 1200

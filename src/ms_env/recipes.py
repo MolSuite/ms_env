@@ -31,6 +31,9 @@ TOML layout (every section but ``[tool]`` and ``[locate]`` is optional)::
     conda = ["openbabel={version}"]
     pip = []
 
+    [exit_codes]                            # what the tool's own codes mean, when it documents them
+    2 = "the input could not be read"
+
     [[install]]                             # plain steps, after [env]
     name = "fetch the weights"
     argv = ["{python}", "-m", "tool.fetch", "{prefix}/weights"]
@@ -73,6 +76,7 @@ from functools import partial
 from pathlib import Path, PurePath
 from typing import Any, Callable, Iterable
 
+from ms_env.exits import ToolFailed
 from ms_env.steps import Step, StepFailed, find_environment_manager, run_step
 from ms_env.host import LOCAL, Host, HostError
 from ms_env.locking import prefix_lock
@@ -141,6 +145,11 @@ class ToolSpec:
     pip: tuple[str, ...] = ()
     channels: tuple[str, ...] = ("conda-forge",)
     steps: tuple[RecipeStep, ...] = ()
+    exit_codes: dict[int, str] = field(default_factory=dict)  # [exit_codes]; signals need none
+
+    def failed(self, code: int, output: str = "") -> ToolFailed:
+        """The error to raise when the tool exited with `code`: says what that code means."""
+        return ToolFailed(self.name, code, output, self.exit_codes)
 
     @classmethod
     def load(cls, path: Path | str) -> "ToolSpec":
@@ -158,6 +167,7 @@ class ToolSpec:
             pip=tuple(env.get("pip", ())),
             channels=tuple(env.get("channels", ("conda-forge",))),
             steps=tuple(map(_install_step, data.get("install", ()))),
+            exit_codes={int(code): str(said) for code, said in data.get("exit_codes", {}).items()},
         )
 
     def recipe(
