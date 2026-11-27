@@ -1,4 +1,6 @@
 
+
+
 <!doctype html>
 <html lang="en" class="no-js">
   <head>
@@ -16,6 +18,7 @@
       
       
       
+      
         <link rel="prev" href="../guide/">
       
       
@@ -24,7 +27,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.1.1">
+      <meta name="generator" content="zensical-0.1.4">
     
     
       
@@ -35,12 +38,13 @@
       
         
       
-      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ebb7f775.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.5cb9f1ba.min.css">
       
         
           
         
         <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
       
       
 
@@ -5920,8 +5924,7 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>src/ms_env/app.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">141</span>
-<span class="normal">142</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">142</span>
 <span class="normal">143</span>
 <span class="normal">144</span>
 <span class="normal">145</span>
@@ -6003,7 +6006,13 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
 <span class="normal">221</span>
 <span class="normal">222</span>
 <span class="normal">223</span>
-<span class="normal">224</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">app_recipe</span><span class="p">(</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">app_recipe</span><span class="p">(</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">requirements</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="n">imports</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
@@ -6028,7 +6037,7 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
 <span class="sd">    wheels the first time, and after the code changes: keep it off UI threads.</span>
 <span class="sd">    """</span>
     <span class="n">prefix</span><span class="p">,</span> <span class="n">cache</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">),</span> <span class="n">Path</span><span class="p">(</span><span class="n">cache</span><span class="p">)</span>
-    <span class="n">code</span><span class="p">,</span> <span class="n">wheels</span><span class="p">,</span> <span class="n">wanted</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">shipped</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">_CODE</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">{}</span>
+    <span class="n">code</span><span class="p">,</span> <span class="n">wheels</span><span class="p">,</span> <span class="n">wanted</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">shipped</span><span class="p">,</span> <span class="n">built</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">_CODE</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">{},</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">requirement</span> <span class="ow">in</span> <span class="n">requirements</span><span class="p">:</span>
         <span class="n">dist</span><span class="p">,</span> <span class="n">extras</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\s*([\w.-]+)\s*(\[[^]]*])?\s*"</span><span class="p">,</span> <span class="n">requirement</span><span class="p">)</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
         <span class="n">module</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[-.]+"</span><span class="p">,</span> <span class="s2">"_"</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
@@ -6039,11 +6048,12 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
             <span class="n">tags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_tree_hash</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">module</span><span class="p">))</span>
             <span class="n">wheels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_wheel</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">tags</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">cache</span><span class="p">))</span>
             <span class="n">wanted</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">code</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">wheels</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">built</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_canonical</span><span class="p">(</span><span class="n">dist</span><span class="p">))</span>
         <span class="n">shipped</span><span class="p">[</span><span class="n">_canonical</span><span class="p">(</span><span class="n">dist</span><span class="p">)]</span> <span class="o">=</span> <span class="p">(</span><span class="n">_requires</span><span class="p">(</span><span class="n">wheels</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">root</span> <span class="k">else</span> <span class="n">dist</span><span class="p">),</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[\w.-]+"</span><span class="p">,</span> <span class="n">extras</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)))</span>
     <span class="n">needs</span> <span class="o">=</span> <span class="n">_needs</span><span class="p">(</span><span class="n">shipped</span><span class="p">,</span> <span class="p">{</span><span class="n">_canonical</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">leave_out</span><span class="p">})</span>
     <span class="n">cache</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">constraints</span><span class="p">,</span> <span class="n">loose</span> <span class="o">=</span> <span class="n">cache</span> <span class="o">/</span> <span class="s2">"constraints.txt"</span><span class="p">,</span> <span class="n">cache</span> <span class="o">/</span> <span class="s2">"constraints-pip.txt"</span>
-    <span class="n">everything</span><span class="p">,</span> <span class="n">by_pip</span> <span class="o">=</span> <span class="n">_constraints</span><span class="p">()</span>
+    <span class="n">everything</span><span class="p">,</span> <span class="n">by_pip</span> <span class="o">=</span> <span class="n">_constraints</span><span class="p">(</span><span class="n">built</span><span class="p">)</span>
     <span class="n">constraints</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">everything</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
     <span class="n">loose</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">by_pip</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span>
 
@@ -6072,7 +6082,10 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
         <span class="c1"># the version of a checkout does not change with its code and pip would keep the old one.</span>
         <span class="n">RecipeStep</span><span class="p">(</span><span class="sa">f</span><span class="s2">"install </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="n">pip</span><span class="p">,</span> <span class="s2">"--no-deps"</span><span class="p">,</span> <span class="s2">"--force-reinstall"</span><span class="p">,</span> <span class="o">*</span><span class="n">wanted</span><span class="p">),</span> <span class="mf">600.0</span><span class="p">),</span>
     <span class="p">]</span>
-    <span class="n">conda</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"python=</span><span class="si">{</span><span class="n">platform</span><span class="o">.</span><span class="n">python_version</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"pip"</span><span class="p">)</span>
+    <span class="c1"># `==`: conda reads `python=3.12.1` as 3.12.1*, which takes 3.12.10. Ray refuses a node whose</span>
+    <span class="c1"># Python patch differs, and the check refuses a prefix whose python was changed by hand.</span>
+    <span class="n">python</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">python_version</span><span class="p">()</span>
+    <span class="n">conda</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"python==</span><span class="si">{</span><span class="n">python</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"pip"</span><span class="p">)</span>
     <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"prefix"</span><span class="p">:</span> <span class="n">prefix</span><span class="p">,</span> <span class="s2">"tools_home"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">tools_home</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)}</span>
     <span class="n">short</span> <span class="o">=</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">parts</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span>  <span class="c1"># noqa: E731</span>
     <span class="k">return</span> <span class="n">Recipe</span><span class="p">(</span>
@@ -6080,7 +6093,8 @@ wheels the first time, and after the code changes: keep it off UI threads.</p>
         <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">,</span>
         <span class="n">candidates</span><span class="o">=</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/bin/python"</span><span class="p">,),</span>
         <span class="n">commands</span><span class="o">=</span><span class="p">(),</span>
-        <span class="n">check</span><span class="o">=</span><span class="p">(</span><span class="s2">"</span><span class="si">{exe}</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"-c"</span><span class="p">,</span> <span class="s2">"import "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imports</span><span class="p">)),</span>
+        <span class="n">check</span><span class="o">=</span><span class="p">(</span><span class="s2">"</span><span class="si">{exe}</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"-c"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"import sys</span><span class="se">\n</span><span class="s2">if sys.version.split()[0] != </span><span class="si">{</span><span class="n">python</span><span class="si">!r}</span><span class="s2">: "</span>
+               <span class="sa">f</span><span class="s2">"sys.exit('python ' + sys.version.split()[0] + ', not </span><span class="si">{</span><span class="n">python</span><span class="si">}</span><span class="s2">')</span><span class="se">\n</span><span class="s2">import "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">imports</span><span class="p">)),</span>
         <span class="n">steps</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="n">_env_steps</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">conda</span><span class="p">,</span> <span class="p">(),</span> <span class="p">(</span><span class="s2">"conda-forge"</span><span class="p">,),</span> <span class="n">values</span><span class="p">,</span> <span class="n">manager</span><span class="p">),</span> <span class="o">*</span><span class="n">refresh</span><span class="p">),</span>
         <span class="n">conda</span><span class="o">=</span><span class="n">conda</span><span class="p">,</span>
         <span class="n">stamp</span><span class="o">=</span><span class="n">short</span><span class="p">(</span><span class="n">conda</span><span class="p">,</span> <span class="n">wanted</span><span class="p">,</span> <span class="n">needs</span><span class="p">,</span> <span class="n">tags</span><span class="p">,</span> <span class="n">constraints</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)),</span>
@@ -7074,7 +7088,8 @@ Only once that owner is known to have stopped: else two clients change one envir
       <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["content.code.copy","navigation.footer","navigation.path","navigation.sections","navigation.top","search.highlight","search.suggest"],"redirect":null,"search":"../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"provider":"mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.3cb411a8.min.js"></script>
+      <script src="../assets/javascripts/bundle.ef37db6d.min.js"></script>
+      
       
     
   </body>
