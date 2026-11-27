@@ -265,6 +265,23 @@ def test_a_recipe_with_a_base_is_updated_where_it_stands(tmp_path, monkeypatch):
     assert not Path(recipe.prefix, "left-over").exists()  # another base: from nothing
 
 
+def test_the_app_recipe_takes_only_this_exact_python(tmp_path, monkeypatch):
+    """Ray refuses a node whose Python patch differs: 3.12.1 must not take 3.12.10, nor a prefix
+    whose python was changed by hand pass its check."""
+    from ms_env import app
+
+    here = tools.app_recipe("app", ["pytest"], ["pytest"], prefix="/far/env", tools_home="/far/tools", cache=tmp_path)
+    assert f"python=={sys.version.split()[0]}" in here.conda
+    run = lambda recipe: subprocess.run([part.replace("{exe}", sys.executable) for part in recipe.check],  # noqa: E731
+                                        capture_output=True, text=True)
+    assert run(here).returncode == 0
+    monkeypatch.setattr(app.platform, "python_version", lambda: "3.12.1")
+    other = tools.app_recipe("app", ["pytest"], ["pytest"], prefix="/far/env", tools_home="/far/tools", cache=tmp_path)
+    assert "python==3.12.1" in other.conda and other.base != here.base
+    refused = run(other)
+    assert refused.returncode != 0 and "3.12.1" in refused.stderr
+
+
 def test_the_app_recipe_sends_checkouts_as_wheels_and_pins_the_rest(tmp_path):
     from ms_env import app
 
