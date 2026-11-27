@@ -73,8 +73,9 @@ def _wheel(root: Path, tag: str, cache: Path) -> Path:
     return next(out.glob("*.whl"))
 
 
-def _constraints() -> tuple[str, str]:
+def _constraints(skip: set[str] = frozenset()) -> tuple[str, str]:
     """`name==version` of what this environment holds: all of it, and what pip took from an index.
+    Names in `skip` (canonical) are left out: they go as wheels of their checkout, another version.
 
     A local build is never pinned (no index has it), nor a name this environment has two
     records of (which one runs is anyone's guess). What conda put here is pinned only in the
@@ -83,7 +84,7 @@ def _constraints() -> tuple[str, str]:
     seen: dict[str, set[tuple[str, bool]]] = {}
     for dist in metadata.distributions():  # one pass: reading every record is most of what this costs
         name, installer = dist.metadata.get("Name"), (dist.read_text("INSTALLER") or "").strip()
-        if not name:  # a broken leftover in site-packages
+        if not name or _canonical(name) in skip:  # a broken leftover in site-packages, or shipped
             continue
         local = "+" in dist.version or (installer != "conda" and dist.read_text("direct_url.json"))
         seen.setdefault(re.sub(r"[-_.]+", "-", name).lower(), set()).add(
@@ -163,7 +164,7 @@ def app_recipe(
     wheels the first time, and after the code changes: keep it off UI threads.
     """
     prefix, cache = str(prefix).rstrip("/"), Path(cache)
-    code, wheels, wanted, tags, shipped = f"{prefix}/{_CODE}", [], [], [], {}
+    code, wheels, wanted, tags, shipped, built = f"{prefix}/{_CODE}", [], [], [], {}, set()
     for requirement in requirements:
         dist, extras = re.fullmatch(r"\s*([\w.-]+)\s*(\[[^]]*])?\s*", requirement).groups()
         module = re.sub(r"[-.]+", "_", dist).lower()
@@ -174,11 +175,12 @@ def app_recipe(
             tags.append(_tree_hash(root, module))
             wheels.append(_wheel(root, tags[-1], cache))
             wanted.append(f"{code}/{wheels[-1].name}")
+            built.add(_canonical(dist))
         shipped[_canonical(dist)] = (_requires(wheels[-1] if root else dist), set(re.findall(r"[\w.-]+", extras or "")))
     needs = _needs(shipped, {_canonical(name) for name in leave_out})
     cache.mkdir(parents=True, exist_ok=True)
     constraints, loose = cache / "constraints.txt", cache / "constraints-pip.txt"
-    everything, by_pip = _constraints()
+    everything, by_pip = _constraints(built)
     constraints.write_text(everything, encoding="utf-8")
     loose.write_text(by_pip, encoding="utf-8")
 
@@ -207,7 +209,10 @@ def app_recipe(
         # the version of a checkout does not change with its code and pip would keep the old one.
         RecipeStep(f"install {name}", (*pip, "--no-deps", "--force-reinstall", *wanted), 600.0),
     ]
-    conda = (f"python={platform.python_version()}", "pip")
+    # `==`: conda reads `python=3.12.1` as 3.12.1*, which takes 3.12.10. Ray refuses a node whose
+    # Python patch differs, and the check refuses a prefix whose python was changed by hand.
+    python = platform.python_version()
+    conda = (f"python=={python}", "pip")
     values = {"prefix": prefix, "tools_home": str(tools_home).rstrip("/")}
     short = lambda *parts: hashlib.sha256(repr(parts).encode()).hexdigest()[:16]  # noqa: E731
     return Recipe(
@@ -215,7 +220,8 @@ def app_recipe(
         prefix=prefix,
         candidates=(f"{prefix}/bin/python",),
         commands=(),
-        check=("{exe}", "-c", "import " + ", ".join(imports)),
+        check=("{exe}", "-c", f"import sys\nif sys.version.split()[0] != {python!r}: "
+               f"sys.exit('python ' + sys.version.split()[0] + ', not {python}')\nimport " + ", ".join(imports)),
         steps=(*_env_steps(name, conda, (), ("conda-forge",), values, manager), *refresh),
         conda=conda,
         stamp=short(conda, wanted, needs, tags, constraints.read_text(encoding="utf-8")),
